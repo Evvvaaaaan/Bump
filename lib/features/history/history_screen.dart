@@ -1,106 +1,83 @@
-import 'package:bump/core/constants/app_colors.dart';
+import 'package:bump/core/services/database_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends ConsumerWidget {
   const HistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: const Text("Connection Log"),
-        backgroundColor: Colors.black,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.pop(),
-        ),
-      ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: 5, // Mock data
-        itemBuilder: (context, index) {
-          return _buildHistoryCard(index);
-        },
-      ),
-    );
-  }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const Scaffold(body: Center(child: Text("로그인 필요")));
 
-  Widget _buildHistoryCard(int index) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[900],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("명함첩", style: GoogleFonts.outfit()),
+        backgroundColor: Colors.transparent,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                "May 20, 7:00 PM",
-                style: GoogleFonts.outfit(color: Colors.grey, fontSize: 12),
-              ),
-              const Spacer(),
-              const Icon(Icons.location_on, size: 14, color: AppColors.businessAccent),
-              const SizedBox(width: 4),
-              Text(
-                "Seongsu-dong",
-                style: GoogleFonts.outfit(color: AppColors.businessAccent, fontSize: 12),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.grey,
-                child: Icon(Icons.person, color: Colors.white),
-              ),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: ref.read(databaseServiceProvider).getConnectionsStream(user.uid),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return Center(child: Text("오류: ${snapshot.error}"));
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+          final list = snapshot.data!;
+
+          if (list.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                   const Text(
-                    "Jane Doe",
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    "UX Designer @ Tech Corp",
-                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
-                  ),
+                  const Icon(Icons.style_outlined, size: 60, color: Colors.white24),
+                  const SizedBox(height: 20),
+                  const Text("아직 교환한 명함이 없습니다.", style: TextStyle(color: Colors.white38)),
                 ],
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.sticky_note_2_outlined, color: Colors.yellow, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    "Met at the Design Conference. Interested in collaboration.",
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
+            );
+          }
+
+          return ListView.builder(
+            itemCount: list.length,
+            padding: const EdgeInsets.all(16),
+            itemBuilder: (context, index) {
+              final item = list[index];
+              // DB에 저장된 snapshot 데이터 가져오기
+              final data = item['snapshot'] as Map<String, dynamic>? ?? {};
+              
+              return Card(
+                color: Colors.white10,
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(16),
+                  onTap: () {
+                    // [핵심] 상세 화면으로 데이터 전달하며 이동
+                    context.push('/card_detail', extra: data);
+                  },
+                  leading: CircleAvatar(
+                    backgroundColor: const Color(0xFF4B6EFF),
+                    child: Text(
+                      (data['name'] as String?)?.substring(0, 1) ?? "?",
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
                   ),
+                  title: Text(
+                    data['name'] ?? "이름 없음", 
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)
+                  ),
+                  subtitle: Text(
+                    "${data['company'] ?? ''} · ${data['role'] ?? ''}",
+                    style: const TextStyle(color: Colors.white60)
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.white30),
                 ),
-              ],
-            ),
-          )
-        ],
+              );
+            },
+          );
+        },
       ),
     );
   }

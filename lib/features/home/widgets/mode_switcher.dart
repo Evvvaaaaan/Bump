@@ -19,17 +19,17 @@ class ModeSwitcher extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           height: 60,
+          padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.1),
             borderRadius: BorderRadius.circular(30),
             border: Border.all(color: Colors.white.withOpacity(0.2)),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildModeIcon(0, Icons.business_center, "Business"),
-              _buildModeIcon(1, Icons.people, "Social"),
-              _buildModeIcon(2, Icons.privacy_tip, "Private"),
+              _buildBtn("Business", 0),
+              _buildBtn("Social", 1),
+              _buildBtn("Private", 2),
             ],
           ),
         ),
@@ -37,35 +37,25 @@ class ModeSwitcher extends StatelessWidget {
     );
   }
 
-  Widget _buildModeIcon(int modeIndex, IconData icon, String label) {
-    final bool isSelected = currentMode == modeIndex;
-    return GestureDetector(
-      onTap: () => onModeChanged(modeIndex),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white.withOpacity(0.2) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
-              size: 24,
+  Widget _buildBtn(String text, int index) {
+    bool isSelected = currentMode == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => onModeChanged(index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white.withOpacity(0.2) : Colors.transparent,
+            borderRadius: BorderRadius.circular(25),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            text,
+            style: TextStyle(
+              color: isSelected ? Colors.white : Colors.white60,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

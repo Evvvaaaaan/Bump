@@ -1,189 +1,195 @@
-import 'package:bump/core/constants/app_colors.dart';
+import 'package:bump/core/services/database_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-class ProfileSetupScreen extends StatefulWidget {
+class ProfileSetupScreen extends ConsumerStatefulWidget {
   const ProfileSetupScreen({super.key});
 
   @override
-  State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
+  ConsumerState<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
 }
 
-class _ProfileSetupScreenState extends State<ProfileSetupScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
+  final _formKey = GlobalKey<FormState>();
+  
+  // 입력 컨트롤러
+  final _nameController = TextEditingController();
+  final _companyController = TextEditingController();
+  final _roleController = TextEditingController();
+  final _phoneController = TextEditingController();
+
+  bool _isLoading = true; // 로딩 상태 시작
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _loadUserProfile(); // [핵심] 화면 진입 시 기존 정보 불러오기
+  }
+
+  // 기존 프로필 데이터 로드 함수
+  Future<void> _loadUserProfile() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // DB에서 내 정보 가져오기
+      final userData = await ref.read(databaseServiceProvider).getUserData(user.uid);
+      
+      if (userData != null && userData['profiles'] != null) {
+        // 비즈니스 프로필 데이터 추출
+        final businessProfile = userData['profiles']['business'] as Map<String, dynamic>?;
+        
+        if (businessProfile != null) {
+          // [핵심] 컨트롤러에 기존 값 채워넣기
+          setState(() {
+            _nameController.text = businessProfile['name'] ?? '';
+            _companyController.text = businessProfile['company'] ?? '';
+            _roleController.text = businessProfile['role'] ?? '';
+            _phoneController.text = businessProfile['phone'] ?? '';
+          });
+        }
+      }
+    } catch (e) {
+      print("프로필 로드 오류: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _nameController.dispose();
+    _companyController.dispose();
+    _roleController.dispose();
+    _phoneController.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception("로그인이 필요합니다.");
+
+      final businessCardData = {
+        'name': _nameController.text,
+        'company': _companyController.text,
+        'role': _roleController.text,
+        'phone': _phoneController.text,
+        'isActive': true,
+        'theme': 'classic_navy',
+      };
+
+      await ref.read(databaseServiceProvider).updateProfile(
+        uid: user.uid,
+        mode: 'business',
+        data: businessCardData,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("명함이 저장되었습니다!")),
+        );
+        context.pop(); 
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("오류: $e")));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: const Text("My Personas"),
+    // 로딩 중이면 스피너 표시
+    if (_isLoading) {
+      return const Scaffold(
         backgroundColor: Colors.black,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          tabs: const [
-            Tab(text: "Business"),
-            Tab(text: "Social"),
-            Tab(text: "Private"),
-          ],
-        ),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("비즈니스 명함 편집", style: GoogleFonts.outfit()),
+        backgroundColor: Colors.transparent,
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildBusinessForm(),
-          _buildSocialForm(),
-          _buildPrivateForm(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBusinessForm() {
-    return _buildFormLayout(
-      color: AppColors.businessPrimary,
-      children: [
-        _buildTextField("Company Name", "Tech Corp"),
-        _buildTextField("Role", "Senior UX Designer"),
-        _buildTextField("Email", "evan@example.com"),
-        _buildTextField("LinkedIn", "linkedin.com/in/evan"),
-        const SizedBox(height: 20),
-        Center(child: _buildUploadButton("Upload Business Card Image")),
-      ],
-    );
-  }
-
-  Widget _buildSocialForm() {
-    return _buildFormLayout(
-      color: AppColors.socialPrimary,
-      children: [
-        _buildTextField("Nickname", "Evan"),
-        _buildTextField("Instagram", "@evan_design"),
-        _buildTextField("MBTI", "ENFP"),
-        const SizedBox(height: 20),
-        const Text("Hobbies (Max 5)", style: TextStyle(color: Colors.white70)),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          children: [
-            _buildChip("Tennis", true),
-            _buildChip("Travel", true),
-            _buildChip("Wine", false),
-            _buildChip("Coding", false),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPrivateForm() {
-    return _buildFormLayout(
-      color: AppColors.privatePrimary,
-      children: [
-        _buildTextField("Private Email", "me@gmail.com"),
-        _buildTextField("Phone", "+82 10-1234-5678"),
-        const SizedBox(height: 20),
-        const Text("Only shared with trusted connections.", style: TextStyle(color: Colors.grey)),
-      ],
-    );
-  }
-
-  Widget _buildFormLayout({required Color color, required List<Widget> children}) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-           Container(
-             height: 5, 
-             width: 50, 
-             decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
-             margin: const EdgeInsets.only(bottom: 20),
-           ),
-           ...children,
-           const SizedBox(height: 40),
-           SizedBox(
-             width: double.infinity,
-             child: ElevatedButton(
-               style: ElevatedButton.styleFrom(backgroundColor: color),
-               onPressed: () {}, 
-               child: const Text("Save & Preview", style: TextStyle(color: Colors.white)),
-             ),
-           )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTextField(String label, String placeholder) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-          const SizedBox(height: 5),
-          TextField(
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: placeholder,
-              hintStyle: TextStyle(color: Colors.grey[700]),
-              filled: true,
-              fillColor: Colors.grey[900],
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-            ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 20),
+              Center(
+                child: Container(
+                  width: 100, height: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: const Icon(Icons.person, color: Colors.white54, size: 50),
+                ),
+              ),
+              const SizedBox(height: 40),
+              
+              _buildTextField("이름", _nameController, "이름을 입력하세요"),
+              const SizedBox(height: 16),
+              _buildTextField("회사 / 소속", _companyController, "소속을 입력하세요"),
+              const SizedBox(height: 16),
+              _buildTextField("직책 / 역할", _roleController, "직책을 입력하세요"),
+              const SizedBox(height: 16),
+              _buildTextField("연락처", _phoneController, "010-0000-0000", isNumber: true),
+              
+              const SizedBox(height: 40),
+              
+              ElevatedButton(
+                onPressed: _saveProfile,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4B6EFF),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text("저장하기", style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildUploadButton(String label) {
-    return Container(
-      width: double.infinity,
-      height: 100,
-      decoration: BoxDecoration(
-        color: Colors.grey[900],
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey[800]!),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.upload_file, color: Colors.grey),
-          const SizedBox(height: 5),
-          Text(label, style: const TextStyle(color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChip(String label, bool selected) {
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (v) {},
-      backgroundColor: Colors.grey[900],
-      selectedColor: AppColors.socialAccent.withOpacity(0.5),
-      labelStyle: TextStyle(color: selected ? Colors.white : Colors.grey),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide.none),
+  Widget _buildTextField(String label, TextEditingController controller, String hint, {bool isNumber = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          keyboardType: isNumber ? TextInputType.phone : TextInputType.text,
+          style: const TextStyle(color: Colors.white),
+          validator: (value) => value == null || value.isEmpty ? "$label을(를) 입력해주세요" : null,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: Colors.white24),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.05),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          ),
+        ),
+      ],
     );
   }
 }

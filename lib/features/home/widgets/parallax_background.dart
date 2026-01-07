@@ -1,8 +1,5 @@
-import 'dart:async';
-import 'dart:math';
-
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 
 class ParallaxBackground extends StatefulWidget {
   final Color primaryColor;
@@ -20,81 +17,68 @@ class ParallaxBackground extends StatefulWidget {
 
 class _ParallaxBackgroundState extends State<ParallaxBackground>
     with SingleTickerProviderStateMixin {
-  // Parallax offsets
-  double _xOffset = 0.0;
-  double _yOffset = 0.0;
-  StreamSubscription<GyroscopeEvent>? _streamSubscription;
-
-  // Animation controller for the "Aurora" flow
   late AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
+    // 무한 반복 애니메이션 컨트롤러
     _controller = AnimationController(
-        vsync: this, duration: const Duration(seconds: 10))
-      ..repeat(reverse: true);
-
-    // Subscribe to gyroscope
-    _streamSubscription = gyroscopeEvents.listen((GyroscopeEvent event) {
-      if (mounted) {
-        setState(() {
-          // Accumulate rotation to shift background
-          // Sensitivity factor
-          const double sensitivity = 2.0; 
-          _xOffset -= event.y * sensitivity;
-          _yOffset -= event.x * sensitivity;
-
-          // Clamp offsets to keep it subtle
-          _xOffset = _xOffset.clamp(-50.0, 50.0);
-          _yOffset = _yOffset.clamp(-50.0, 50.0);
-        });
-      }
-    });
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
-    _streamSubscription?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // Base dark layer
-        Container(color: Colors.black),
-        
-        // Animated Gradient Layer
-        AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return AnimatedContainer(
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Stack(
+          children: [
+            // 배경색 (부드러운 전환)
+            AnimatedContainer(
               duration: const Duration(milliseconds: 500),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft + Alignment(_xOffset * 0.01, _yOffset * 0.01),
-                  end: Alignment.bottomRight + Alignment(_xOffset * 0.01, _yOffset * 0.01),
-                  colors: [
-                    Colors.black,
-                    widget.primaryColor.withOpacity(0.6),
-                    widget.accentColor.withOpacity(0.4),
-                    Colors.black,
-                  ],
-                  stops: [
-                    0.0,
-                    0.3 + 0.1 * sin(_controller.value * 2 * pi), 
-                    0.7 - 0.1 * cos(_controller.value * 2 * pi), 
-                    1.0
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ],
+              color: Colors.black,
+            ),
+            // 오로라 원 1 (위쪽)
+            Positioned(
+              top: -100 + (_controller.value * 20),
+              left: -50,
+              child: _buildBlurCircle(widget.primaryColor, 300),
+            ),
+            // 오로라 원 2 (아래쪽)
+            Positioned(
+              bottom: -50 - (_controller.value * 30),
+              right: -50,
+              child: _buildBlurCircle(widget.accentColor, 250),
+            ),
+            // 전체 블러 처리 (Glass Effect)
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+              child: Container(color: Colors.transparent),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildBlurCircle(Color color, double size) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 500),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color.withOpacity(0.4),
+      ),
     );
   }
 }
