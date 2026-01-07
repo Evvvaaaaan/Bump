@@ -54,10 +54,6 @@ final _router = GoRouter(
       builder: (context, state) => const BumpScreen(),
     ),
     GoRoute(
-      path: '/card_detail',
-      builder: (context, state) => const CardDetailScreen(),
-    ),
-    GoRoute(
       path: '/editor',
       builder: (context, state) => const CardEditorScreen(),
     ),
