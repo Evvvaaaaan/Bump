@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
 
 final databaseServiceProvider = Provider<DatabaseService>((ref) => DatabaseService());
 
 class DatabaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   // ==================================================================
   // 1. 프로필 관리 (Profile)
   // ==================================================================
@@ -29,7 +31,24 @@ class DatabaseService {
       throw e;
     }
   }
-
+  Future<String> uploadProfileImage(String uid, String mode, File imageFile) async {
+    try {
+      // 파일 경로: users/{uid}/{mode}_profile.jpg
+      final ref = _storage.ref().child('users/$uid/${mode}_profile.jpg');
+      
+      // 파일 업로드
+  
+      TaskSnapshot snapshot = await ref.putFile(imageFile);
+      
+      // 다운로드 URL 가져오기
+      final url = await snapshot.ref.getDownloadURL();
+      return url;
+    } catch (e) {
+      print("❌ 이미지 업로드 실패: $e");
+      throw e;
+    }
+  }
+  
   // 내 정보 가져오기 (1회성)
   Future<Map<String, dynamic>?> getUserData(String uid) async {
     try {

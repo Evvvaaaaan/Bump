@@ -1,9 +1,9 @@
 import 'package:bump/core/constants/app_colors.dart';
 import 'package:bump/core/services/database_service.dart';
 import 'package:bump/core/services/shake_detector.dart';
+import 'package:bump/features/home/widgets/bump_card.dart'; // [필수] 위에서 만든 위젯 import
 import 'package:bump/features/home/widgets/mode_switcher.dart';
 import 'package:bump/features/home/widgets/parallax_background.dart';
-import 'package:bump/features/home/widgets/pulse_avatar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -25,6 +25,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    // 흔들기 감지 시 범프 화면으로 이동
     _shakeDetector = ShakeDetector(onPhoneShake: () => context.push('/bump'));
     _shakeDetector?.startListening();
   }
@@ -40,7 +41,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final currentModeIndex = ref.watch(modeProvider);
     final user = FirebaseAuth.instance.currentUser;
 
-    // 모드 문자열 변환 (DB 키값과 일치)
+    // DB 키값 변환 헬퍼
     String getModeKey(int index) => ['business', 'social', 'private'][index];
 
     return Scaffold(
@@ -49,42 +50,77 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ? ref.read(databaseServiceProvider).getProfileStream(user.uid)
             : null,
         builder: (context, snapshot) {
-          // 데이터가 없거나 로딩 중일 때 기본값 사용
+          // 1. 기본값 및 색상 설정
           Color primary = AppColors.businessPrimary;
           Color accent = AppColors.businessAccent;
-          String name = "Guest";
 
-          if (snapshot.hasData && snapshot.data!.exists) {
+          // 모드별 색상 변경
+          if (currentModeIndex == 1) { 
+            primary = AppColors.socialPrimary; 
+            accent = AppColors.socialAccent; 
+          } else if (currentModeIndex == 2) { 
+            primary = AppColors.privatePrimary; 
+            accent = AppColors.privateAccent; 
+          }
+
+          // 2. 명함 데이터 준비 (Map으로 정리)
+          Map<String, dynamic> cardData = {};
+
+          if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
             final data = snapshot.data!.data() as Map<String, dynamic>;
             final profiles = data['profiles'] as Map<String, dynamic>?;
             final currentProfile = profiles?[getModeKey(currentModeIndex)];
             
             if (currentProfile != null) {
-              name = currentProfile['name'] ?? "User";
-              // 여기서 DB에 저장된 테마 색상을 가져올 수도 있음 (현재는 모드별 기본색 유지)
+              // DB에서 가져온 데이터를 그대로 할당하거나, 필요한 필드만 추출
+              cardData = {
+                'name': currentProfile['name'],
+                'role': currentProfile['role'],     // Business
+                'bio': currentProfile['bio'],       // Social/Private
+                'company': currentProfile['company'], // Business
+                'location': currentProfile['location'], // Social/Private
+                'phone': currentProfile['phone'],   // Business
+                'email': currentProfile['email'],   // Social/Private
+                'photoUrl': currentProfile['photoUrl'],
+              };
             }
           }
 
-          // 모드별 기본 색상 로직 (DB에 테마값이 있다면 그걸 우선순위로 덮어쓰기 가능)
-          if (currentModeIndex == 1) { primary = AppColors.socialPrimary; accent = AppColors.socialAccent; }
-          else if (currentModeIndex == 2) { primary = AppColors.privatePrimary; accent = AppColors.privateAccent; }
-
           return Stack(
             children: [
+              // 배경 (패럴랙스 효과)
               ParallaxBackground(primaryColor: primary, accentColor: accent),
+              
+              // 메인 콘텐츠 (명함 카드)
               Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    PulseAvatar(accentColor: accent, onTap: () => context.push('/bump')),
-                    const SizedBox(height: 30),
-                    // 사용자 이름 표시
-                    Text("Hello, $name", 
-                      style: const TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold)
-                    ),
-                  ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // [핵심] 명함 카드 위젯 표시
+                      BumpCard(
+                        modeIndex: currentModeIndex,
+                        primaryColor: accent, // 강조색 사용
+                        data: cardData,       // 준비된 데이터 전달
+                      ),
+                      
+                      const SizedBox(height: 40),
+                      
+                      // 안내 문구
+                      Text(
+                        "폰을 흔들어 교환하세요",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.5),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+
+              // 하단 모드 스위처
               Positioned(
                 bottom: 50, left: 20, right: 20,
                 child: ModeSwitcher(
@@ -92,13 +128,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   onModeChanged: (idx) => ref.read(modeProvider.notifier).state = idx,
                 ),
               ),
+
+              // 우측 상단: 프로필 편집 버튼
               Positioned(
                 top: 50, right: 20,
                 child: IconButton(
-                  icon: const Icon(Icons.person, color: Colors.white),
-                  onPressed: () => context.push('/profile'),
+                  icon: const Icon(Icons.edit, color: Colors.white),
+                  onPressed: () => context.push('/profile'), // 혹은 /editor
                 ),
               ),
+
+              // 좌측 상단: 히스토리 버튼
               Positioned(
                 top: 50, left: 20,
                 child: IconButton(
