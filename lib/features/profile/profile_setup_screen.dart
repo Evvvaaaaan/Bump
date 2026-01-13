@@ -1,12 +1,12 @@
 import 'dart:io';
 import 'package:bump/core/constants/app_colors.dart';
 import 'package:bump/core/services/database_service.dart';
+import 'package:bump/features/design/card_design_screen.dart'; // [필수] 디자인 화면 import
 import 'package:bump/features/home/widgets/bump_card.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ProfileSetupScreen extends ConsumerStatefulWidget {
@@ -19,20 +19,19 @@ class ProfileSetupScreen extends ConsumerStatefulWidget {
 class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   
-  // 공통 입력
   final TextEditingController _nameCtrl = TextEditingController();
-  final TextEditingController _roleCtrl = TextEditingController();   // Role / Bio
-  final TextEditingController _detailCtrl = TextEditingController(); // Company / Location
-  final TextEditingController _contactCtrl = TextEditingController(); // Phone / SNS
+  final TextEditingController _roleCtrl = TextEditingController();
+  final TextEditingController _detailCtrl = TextEditingController();
+  final TextEditingController _contactCtrl = TextEditingController();
   
-  // [New] Social 전용 입력
   final TextEditingController _mbtiCtrl = TextEditingController();
   final TextEditingController _musicCtrl = TextEditingController();
   final TextEditingController _birthCtrl = TextEditingController();
-  final TextEditingController _hobbyCtrl = TextEditingController(); // 쉼표로 구분
+  final TextEditingController _hobbyCtrl = TextEditingController();
   
   File? _pickedImage;
   String? _currentPhotoUrl;
+  Map<String, dynamic> _currentStyle = {}; // [New] 현재 스타일 저장용
   bool _isLoading = false;
 
   @override
@@ -46,14 +45,8 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> with Si
   @override
   void dispose() {
     _tabController.dispose();
-    _nameCtrl.dispose();
-    _roleCtrl.dispose();
-    _detailCtrl.dispose();
-    _contactCtrl.dispose();
-    _mbtiCtrl.dispose();
-    _musicCtrl.dispose();
-    _birthCtrl.dispose();
-    _hobbyCtrl.dispose();
+    _nameCtrl.dispose(); _roleCtrl.dispose(); _detailCtrl.dispose(); _contactCtrl.dispose();
+    _mbtiCtrl.dispose(); _musicCtrl.dispose(); _birthCtrl.dispose(); _hobbyCtrl.dispose();
     super.dispose();
   }
 
@@ -67,10 +60,14 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> with Si
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    // 초기화
-    _nameCtrl.text = ""; _roleCtrl.text = ""; _detailCtrl.text = ""; _contactCtrl.text = "";
-    _mbtiCtrl.text = ""; _musicCtrl.text = ""; _birthCtrl.text = ""; _hobbyCtrl.text = "";
-    setState(() { _pickedImage = null; _currentPhotoUrl = null; });
+    // 입력 초기화
+    _nameCtrl.clear(); _roleCtrl.clear(); _detailCtrl.clear(); _contactCtrl.clear();
+    _mbtiCtrl.clear(); _musicCtrl.clear(); _birthCtrl.clear(); _hobbyCtrl.clear();
+    setState(() {
+      _pickedImage = null;
+      _currentPhotoUrl = null;
+      _currentStyle = {};
+    });
 
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
@@ -84,20 +81,18 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> with Si
           setState(() {
             _nameCtrl.text = profile['name'] ?? "";
             _currentPhotoUrl = profile['photoUrl'];
+            _currentStyle = profile['style'] ?? {}; // 스타일 로드
 
             if (index == 1) { // Social
               _roleCtrl.text = profile['bio'] ?? "";
-              _detailCtrl.text = profile['location'] ?? ""; // Social에선 잘 안쓰지만 유지
-              _contactCtrl.text = profile['instagram'] ?? ""; // SNS 링크로 사용
-              // Social 추가 필드
+              _detailCtrl.text = profile['location'] ?? "";
+              _contactCtrl.text = profile['instagram'] ?? "";
               _mbtiCtrl.text = profile['mbti'] ?? "";
               _musicCtrl.text = profile['music'] ?? "";
               _birthCtrl.text = profile['birthday'] ?? "";
-              // 리스트를 문자열로 변환 (UI 표시용)
               final List hobbies = profile['hobbies'] ?? [];
               _hobbyCtrl.text = hobbies.join(', ');
             } else { 
-              // Business & Private
               _roleCtrl.text = profile['role'] ?? profile['bio'] ?? "";
               _detailCtrl.text = profile['company'] ?? profile['location'] ?? "";
               _contactCtrl.text = profile['phone'] ?? profile['email'] ?? "";
@@ -137,21 +132,17 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> with Si
       final Map<String, dynamic> data = {
         'name': _nameCtrl.text,
         'photoUrl': photoUrl,
+        // 'style': _currentStyle, // 스타일 유지
       };
 
       if (modeIdx == 1) { // Social
-        data['bio'] = _roleCtrl.text;
+        // data['bio'] = _roleCtrl.text;
         data['location'] = _detailCtrl.text;
-        data['instagram'] = _contactCtrl.text; // SNS 필드로 활용
-        // 추가 정보 저장
+        data['instagram'] = _contactCtrl.text;
         data['mbti'] = _mbtiCtrl.text;
         data['music'] = _musicCtrl.text;
         data['birthday'] = _birthCtrl.text;
-        // 쉼표로 구분된 취미를 리스트로 변환
-        data['hobbies'] = _hobbyCtrl.text.split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
+        data['hobbies'] = _hobbyCtrl.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
       } else if (modeIdx == 0) { // Business
         data['role'] = _roleCtrl.text;
         data['company'] = _detailCtrl.text;
@@ -183,10 +174,10 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> with Si
     Color primaryColor = [AppColors.businessPrimary, AppColors.socialPrimary, AppColors.privatePrimary][_tabController.index];
     final isSocial = _tabController.index == 1;
 
-    // 미리보기용 데이터 생성
     final previewData = {
       'name': _nameCtrl.text.isEmpty ? '이름' : _nameCtrl.text,
       'photoUrl': _pickedImage != null ? null : _currentPhotoUrl,
+      'style': _currentStyle, // 미리보기에 스타일 전달
       if (isSocial) ...{
         'bio': _roleCtrl.text,
         'mbti': _mbtiCtrl.text,
@@ -196,10 +187,9 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> with Si
         'instagram': _contactCtrl.text,
       } else ...{
         'role': _roleCtrl.text,
-        'bio': _roleCtrl.text,
         'company': _detailCtrl.text,
-        'location': _detailCtrl.text,
         'phone': _contactCtrl.text,
+        'location': _detailCtrl.text,
         'email': _contactCtrl.text,
       }
     };
@@ -226,15 +216,37 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> with Si
             ),
             const SizedBox(height: 20),
             
-            // 2. 사진 변경
-            GestureDetector(
-              onTap: _pickImage,
-              child: CircleAvatar(
-                radius: 40,
-                backgroundColor: Colors.grey[800],
-                backgroundImage: _pickedImage != null ? FileImage(_pickedImage!) : (_currentPhotoUrl != null ? NetworkImage(_currentPhotoUrl!) : null) as ImageProvider?,
-                child: (_pickedImage == null && _currentPhotoUrl == null) ? const Icon(Icons.camera_alt) : null,
-              ),
+            // 2. 사진 변경 & 디자인 꾸미기 버튼
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                GestureDetector(
+                  onTap: _pickImage,
+                  child: CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.grey[800],
+                    backgroundImage: _pickedImage != null ? FileImage(_pickedImage!) : (_currentPhotoUrl != null ? NetworkImage(_currentPhotoUrl!) : null) as ImageProvider?,
+                    child: (_pickedImage == null && _currentPhotoUrl == null) ? const Icon(Icons.camera_alt, size: 20) : null,
+                  ),
+                ),
+                const SizedBox(width: 20),
+                // [New] 디자인 화면 이동 버튼
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => CardDesignScreen(modeIndex: _tabController.index)),
+                    ).then((_) => _loadDataForMode(_tabController.index)); // 돌아오면 데이터 갱신
+                  },
+                  icon: Icon(Icons.palette, color: primaryColor),
+                  label: Text("명함 꾸미기", style: TextStyle(color: primaryColor)),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: primaryColor.withOpacity(0.5)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 30),
 
@@ -242,7 +254,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> with Si
             _buildTextField("이름 (Name)", _nameCtrl),
             
             if (isSocial) ...[
-              // Social Mode Inputs
               _buildTextField("상태 메시지 (Bio)", _roleCtrl),
               Row(
                 children: [
@@ -251,11 +262,10 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> with Si
                   Expanded(child: _buildTextField("생일 (MM.DD)", _birthCtrl)),
                 ],
               ),
-              _buildTextField("취미 (쉼표로 구분, 예: 독서, 서핑)", _hobbyCtrl),
+              _buildTextField("취미 (쉼표로 구분)", _hobbyCtrl),
               _buildTextField("좋아하는 노래 (Music)", _musicCtrl),
               _buildTextField("인스타그램 / SNS", _contactCtrl),
             ] else ...[
-              // Business & Private Inputs
               _buildTextField(_tabController.index == 0 ? "직함 (Role)" : "상태 메시지", _roleCtrl),
               _buildTextField(_tabController.index == 0 ? "회사 (Company)" : "지역 (Location)", _detailCtrl),
               _buildTextField(_tabController.index == 0 ? "전화번호" : "이메일/연락처", _contactCtrl),

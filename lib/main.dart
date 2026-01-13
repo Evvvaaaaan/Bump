@@ -1,3 +1,4 @@
+import 'package:bump/features/auth/login_screen.dart';
 import 'package:bump/features/bump/bump_screen.dart';
 import 'package:bump/features/card/card_detail_screen.dart';
 import 'package:bump/features/editor/card_editor_screen.dart';
@@ -24,18 +25,11 @@ void main() async {
   );
 
   // 익명 로그인 시도 (앱 시작 시 자동 로그인)
-  try {
-    final userCredential = await FirebaseAuth.instance.signInAnonymously();
-    print("Signed in with temporary account: ${userCredential.user?.uid}");
-  } on FirebaseAuthException catch (e) {
-    switch (e.code) {
-      case "operation-not-allowed":
-        print("Anonymous auth hasn't been enabled for this project.");
-        break;
-      default:
-        print("Unknown error: ${e.message}");
-    }
-  }
+  // 익명 로그인 로직 제거 (LoginScreen에서 처리)
+  // try {
+  //   final userCredential = await FirebaseAuth.instance.signInAnonymously();
+  //   print("Signed in with temporary account: ${userCredential.user?.uid}");
+  // } on FirebaseAuthException catch (e) { ... }
 
   // ProviderScope는 runApp 안에 직접 전달해야 합니다.
   runApp(const ProviderScope(child: BumpApp()));
@@ -45,6 +39,10 @@ void main() async {
 final _router = GoRouter(
   initialLocation: '/',
   routes: [
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => const LoginScreen(),
+    ),
     GoRoute(
       path: '/',
       builder: (context, state) => const HomeScreen(),
@@ -68,12 +66,20 @@ final _router = GoRouter(
     GoRoute(
       path: '/card_detail',
       builder: (context, state) {
-        // [수정] extra로 전달된 데이터를 받아서 화면에 넘겨줌
         final data = state.extra as Map<String, dynamic>? ?? {};
         return CardDetailScreen(cardData: data);
       },
     ),
   ],
+  redirect: (context, state) {
+    final user = FirebaseAuth.instance.currentUser;
+    final isLoggingIn = state.uri.toString() == '/login';
+    
+    if (user == null && !isLoggingIn) return '/login';
+    if (user != null && isLoggingIn) return '/';
+    
+    return null;
+  },
 );
 
 class BumpApp extends ConsumerWidget {

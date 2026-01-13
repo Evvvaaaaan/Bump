@@ -1,10 +1,11 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter_contacts/flutter_contacts.dart'; // 연락처 패키지
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class BumpCard extends StatelessWidget {
   final Map<String, dynamic> data;
-  final int modeIndex; // 0: Business, 1: Social, 2: Private
+  final int modeIndex;
   final Color primaryColor;
 
   const BumpCard({
@@ -14,90 +15,42 @@ class BumpCard extends StatelessWidget {
     required this.primaryColor,
   });
 
-  // [수정됨] 스마트 링크 및 상세 연락처 저장 함수
   Future<void> _launchSmartLink(BuildContext context, String input, {String type = 'web'}) async {
     if (input.isEmpty) return;
     String urlString = input.trim();
-
     try {
-      // 1. [핵심] 전화번호인 경우 -> 상세 정보(이름, 직함, 회사)를 포함하여 저장 화면 이동
       if (type == 'contact' && RegExp(r'^[0-9-]+$').hasMatch(urlString)) {
         try {
-          // 데이터 가져오기
           final String firstName = data['name'] ?? "";
-          // [요청사항 반영] LastName(성) 필드에 '직함'을 넣습니다.
-          final String lastName = data['role'] ?? ""; 
+          final String lastName = data['role'] ?? "";
           final String company = data['company'] ?? "";
           final String email = data['email'] ?? "";
-          
-          // 연락처 객체 생성
           final newContact = Contact()
             ..name.first = firstName
-            ..name.last = lastName // 요청하신대로 직함을 '성'에 입력
+            ..name.last = lastName
             ..phones = [Phone(urlString)];
-
-          // 회사 정보 추가
-          if (company.isNotEmpty) {
-            newContact.organizations = [
-              Organization(
-                company: company,
-                // title: lastName, // (옵션) 직함 필드에도 직함을 넣어줍니다.
-              )
-            ];
-          }
-
-          // 이메일이 있다면 추가
-          if (email.isNotEmpty) {
-            newContact.emails = [Email(email)];
-          }
-            
-          // 기기의 '연락처 추가' 화면 띄우기 (입력된 정보가 채워진 상태로 열림)
+          if (company.isNotEmpty) newContact.organizations = [Organization(company: company, title: lastName)];
+          if (email.isNotEmpty) newContact.emails = [Email(email)];
           await FlutterContacts.openExternalInsert(newContact);
           return;
         } catch (e) {
-          print("연락처 저장 실패: $e");
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("연락처 앱을 열 수 없습니다.")),
-            );
-          }
+          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("연락처 앱을 열 수 없습니다.")));
           return;
         }
       }
-
-      // 2. 나머지 링크 처리 (SNS, 음악 등 기존 로직 유지)
       Uri? uri;
-      
       if (type == 'music') {
-        if (!urlString.startsWith('http')) {
-          urlString = 'https://www.youtube.com/results?search_query=${Uri.encodeComponent(urlString)}';
-        }
+        if (!urlString.startsWith('http')) urlString = 'https://www.youtube.com/results?search_query=${Uri.encodeComponent(urlString)}';
       } else if (type == 'sns') {
-        if (urlString.startsWith('@')) {
-          urlString = 'https://www.instagram.com/${urlString.replaceAll('@', '')}';
-        } else if (!urlString.startsWith('http') && !urlString.contains('.')) {
-          urlString = 'https://www.instagram.com/$urlString';
-        } else if (!urlString.startsWith('http')) {
-           urlString = 'https://$urlString'; 
-        }
-      } else if (type == 'contact') {
-        // 이메일 클릭 시
-        if (urlString.contains('@')) {
-          uri = Uri(scheme: 'mailto', path: urlString);
-        }
+        if (urlString.startsWith('@')) urlString = 'https://www.instagram.com/${urlString.replaceAll('@', '')}';
+        else if (!urlString.startsWith('http') && !urlString.contains('.')) urlString = 'https://www.instagram.com/$urlString';
+        else if (!urlString.startsWith('http')) urlString = 'https://$urlString';
+      } else if (type == 'contact' && urlString.contains('@')) {
+        uri = Uri(scheme: 'mailto', path: urlString);
       }
-
       uri ??= Uri.parse(urlString.startsWith('http') ? urlString : 'https://$urlString');
-
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("연결할 수 없습니다: $urlString")),
-          );
-        }
-      }
+      if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+      else if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("연결할 수 없습니다: $urlString")));
     } catch (e) {
       print("링크 열기 오류: $e");
     }
@@ -107,162 +60,188 @@ class BumpCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final modeLabel = ['Business', 'Social', 'Private'][modeIndex];
     
-    // UI 표시용 데이터 준비
+    // 스타일 데이터
+    final Map<String, dynamic> style = data['style'] ?? {};
+    final String colorType = style['colorType'] ?? 'gradient';
+    final int colorId = style['colorId'] ?? 0;
+    final String texture = style['texture'] ?? 'glass';
+
+    // 색상 프리셋
+    final List<Color> solidColors = [
+      Colors.grey.shade800, const Color(0xFF1A237E), const Color(0xFF004D40),
+      const Color(0xFFB71C1C), const Color(0xFF4A148C), Colors.black,
+    ];
+    final List<List<Color>> gradientColors = [
+      [const Color(0xFF434343), const Color(0xFF000000)],
+      [const Color(0xFF2C3E50), const Color(0xFF4CA1AF)],
+      [const Color(0xFF614385), const Color(0xFF516395)],
+      [const Color(0xFF0F2027), const Color(0xFF203A43), const Color(0xFF2C5364)],
+      [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)],
+    ];
+
+    BoxDecoration baseDecoration;
+    if (colorType == 'solid') {
+      final color = solidColors[colorId < solidColors.length ? colorId : 0];
+      baseDecoration = BoxDecoration(color: color, borderRadius: BorderRadius.circular(24));
+    } else {
+      final colors = gradientColors[colorId < gradientColors.length ? colorId : 0];
+      baseDecoration = BoxDecoration(
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors),
+        borderRadius: BorderRadius.circular(24),
+      );
+    }
+
+    Widget? textureOverlay;
+    if (texture == 'glass') {
+      textureOverlay = ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withOpacity(0.2)),
+            ),
+          ),
+        ),
+      );
+    } else if (texture == 'metal') {
+      textureOverlay = Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [Colors.white.withOpacity(0.15), Colors.transparent, Colors.white.withOpacity(0.05)],
+            stops: const [0.0, 0.5, 1.0],
+          ),
+          border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+              colors: [Colors.transparent, Colors.white.withOpacity(0.05), Colors.transparent],
+              stops: const [0.0, 0.5, 1.0],
+              tileMode: TileMode.repeated,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 데이터
     final name = data['name'] ?? "Guest";
     final photoUrl = data['photoUrl'];
-    
-    final subtitle = data['role'] ?? data['bio'] ?? "No description";
+    final subtitle = data['role'] ?? data['bio'] ?? ""; 
     final detail = data['company'] ?? data['location'] ?? "";
     final contact = data['phone'] ?? data['email'] ?? data['instagram'] ?? "";
-
     final String? mbti = data['mbti'];
-    final String? music = data['music'];
+    // [제거됨] music, hobbies는 사용하지 않음
     final String? birthday = data['birthday'];
-    final List<dynamic> hobbies = data['hobbies'] ?? [];
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: primaryColor.withValues(alpha: 0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          )
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 상단 프로필 영역
-          Row(
+    return Stack(
+      children: [
+        Container(
+          width: double.infinity,
+          decoration: baseDecoration,
+          child: const SizedBox(height: 200),
+        ),
+        if (textureOverlay != null) Positioned.fill(child: textureOverlay),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 60, height: 60,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
-                  image: photoUrl != null
-                      ? DecorationImage(image: NetworkImage(photoUrl), fit: BoxFit.cover)
-                      : null,
-                  color: Colors.grey.withValues(alpha: 0.3),
-                ),
-                child: photoUrl == null
-                    ? const Icon(Icons.person, color: Colors.white70, size: 30)
-                    : null,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name,
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-                    const SizedBox(height: 4),
-                    if (modeIndex == 1 && mbti != null && mbti.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: primaryColor,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(mbti, 
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)
-                        ),
-                      )
-                    else
-                      Text(subtitle,
-                          style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.7)),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: primaryColor.withValues(alpha: 0.5)),
-                ),
-                child: Text(modeLabel,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: primaryColor.withValues(alpha: 0.9))),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 20),
-          const Divider(color: Colors.white10, height: 1),
-          const SizedBox(height: 20),
-
-          // Social Mode 표시
-          if (modeIndex == 1) ...[
-            if (subtitle.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text('"$subtitle"', 
-                  style: const TextStyle(fontSize: 16, fontStyle: FontStyle.italic, color: Colors.white)
-                ),
-              ),
-            
-            if (hobbies.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Wrap(
-                  spacing: 8, runSpacing: 8,
-                  children: hobbies.map((tag) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              // --- 상단 프로필 ---
+              Row(
+                children: [
+                  Container(
+                    width: 60, height: 60,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.5), width: 2),
+                      image: photoUrl != null ? DecorationImage(image: NetworkImage(photoUrl), fit: BoxFit.cover) : null,
+                      color: Colors.black26,
                     ),
-                    child: Text("#$tag", style: const TextStyle(fontSize: 12, color: Colors.white)),
-                  )).toList(),
-                ),
-              ),
-
-            Row(
-              children: [
-                if (music != null && music.isNotEmpty)
+                    child: photoUrl == null ? const Icon(Icons.person, color: Colors.white70, size: 30) : null,
+                  ),
+                  const SizedBox(width: 16),
                   Expanded(
-                    child: GestureDetector(
-                      onTap: () => _launchSmartLink(context, music, type: 'music'),
-                      child: _buildIconText(Icons.music_note, music, isLink: true),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                        const SizedBox(height: 4),
+                        // MBTI 뱃지 (Social 모드일 때만 표시)
+                        if (modeIndex == 1 && mbti != null && mbti.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(mbti, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                          )
+                        else
+                          Text(subtitle, style: const TextStyle(fontSize: 14, color: Colors.white70), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ],
                     ),
                   ),
-                if (birthday != null && birthday.isNotEmpty) ...[
-                  const SizedBox(width: 16),
-                  _buildIconText(Icons.cake, birthday),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white30),
+                    ),
+                    child: Text(modeLabel, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
+                  ),
                 ],
-              ],
-            ),
-            
-            if (contact.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () => _launchSmartLink(context, contact, type: 'sns'),
-                child: _buildIconText(Icons.link, contact, isLink: true),
               ),
-            ]
+              const SizedBox(height: 20),
+              Divider(color: Colors.white.withOpacity(0.2), height: 1),
+              const SizedBox(height: 20),
 
-          ] else ...[
-            // Business & Private 표시
-            _buildIconText(Icons.business, detail.isEmpty ? "No details" : detail),
-            
-            if (contact.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () => _launchSmartLink(context, contact, type: 'contact'),
-                child: _buildIconText(contact.contains('@') ? Icons.email : Icons.phone, contact, isLink: true),
-              ),
-            ]
-          ],
-        ],
-      ),
+              // --- Social Mode Layout (Bio, Tag, Song 제거됨) ---
+              if (modeIndex == 1) ...[
+                // 남은 요소: 생일 & SNS 링크만 깔끔하게 한 줄(또는 두 줄)로 배치
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween, // 양쪽 정렬
+                  children: [
+                    // 생일
+                    if (birthday != null && birthday.isNotEmpty)
+                      _buildIconText(Icons.cake, birthday),
+
+                    // SNS 링크 (우측 배치)
+                    if (contact.isNotEmpty)
+                      GestureDetector(
+                        onTap: () => _launchSmartLink(context, contact, type: 'sns'),
+                        child: _buildIconText(Icons.link, contact, isLink: true),
+                      ),
+                  ],
+                )
+
+              ] else ...[
+                // Business & Private Mode (기존 유지)
+                if (detail.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildIconText(Icons.business, detail),
+                  ),
+                if (contact.isNotEmpty)
+                  GestureDetector(
+                    onTap: () => _launchSmartLink(context, contact, type: 'contact'),
+                    child: _buildIconText(contact.contains('@') ? Icons.email : Icons.phone, contact, isLink: true),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -270,15 +249,15 @@ class BumpCard extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: isLink ? Colors.blueAccent.shade100 : Colors.white.withValues(alpha: 0.6)),
+        Icon(icon, size: 18, color: isLink ? Colors.white : Colors.white70),
         const SizedBox(width: 10),
         Flexible(
           child: Text(text, 
             style: TextStyle(
               fontSize: 14, 
-              color: isLink ? Colors.blueAccent.shade100 : Colors.white.withValues(alpha: 0.8),
+              color: isLink ? Colors.white : Colors.white.withOpacity(0.9),
               decoration: isLink ? TextDecoration.underline : TextDecoration.none,
-              decorationColor: Colors.blueAccent.shade100,
+              fontWeight: isLink ? FontWeight.bold : FontWeight.normal,
             ),
             overflow: TextOverflow.ellipsis,
           ),
