@@ -20,9 +20,12 @@ class _CardDesignScreenState extends ConsumerState<CardDesignScreen> with Single
   Map<String, dynamic> _previewData = {};
 
   // 색상 프리셋 (BumpCard와 동일하게 맞춰야 함)
+  // 색상 프리셋 (BumpCard와 동일하게 맞춰야 함)
   final List<Color> _solidColors = [
     Colors.grey.shade800, const Color(0xFF1A237E), const Color(0xFF004D40),
     const Color(0xFFB71C1C), const Color(0xFF4A148C), Colors.black,
+    const Color(0xFFE65100), const Color(0xFF3E2723), const Color(0xFF263238),
+    const Color(0xFF880E4F), const Color(0xFF0D47A1),
   ];
   final List<List<Color>> _gradientColors = [
     [const Color(0xFF434343), const Color(0xFF000000)],
@@ -30,11 +33,18 @@ class _CardDesignScreenState extends ConsumerState<CardDesignScreen> with Single
     [const Color(0xFF614385), const Color(0xFF516395)],
     [const Color(0xFF0F2027), const Color(0xFF203A43), const Color(0xFF2C5364)],
     [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)],
+    [const Color(0xFFFF512F), const Color(0xFFDD2476)], // Sunset
+    [const Color(0xFF11998e), const Color(0xFF38ef7d)], // Mint
+    [const Color(0xFFC94B4B), const Color(0xFF4B134F)], // Cherry
+    [const Color(0xFF00C9FF), const Color(0xFF92FE9D)], // Neon Green
+    [const Color(0xFFFC466B), const Color(0xFF3F5EFB)], // Neon Blue
   ];
   // 질감 옵션
   final List<Map<String, dynamic>> _textureOptions = [
     {'id': 'glass', 'label': '유리', 'icon': Icons.blur_on},
     {'id': 'metal', 'label': '메탈', 'icon': Icons.horizontal_rule},
+    {'id': 'carbon', 'label': '카본', 'icon': Icons.grid_3x3},
+    {'id': 'dots', 'label': '도트', 'icon': Icons.scatter_plot},
   ];
 
   @override

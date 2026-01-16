@@ -70,6 +70,8 @@ class BumpCard extends StatelessWidget {
     final List<Color> solidColors = [
       Colors.grey.shade800, const Color(0xFF1A237E), const Color(0xFF004D40),
       const Color(0xFFB71C1C), const Color(0xFF4A148C), Colors.black,
+      const Color(0xFFE65100), const Color(0xFF3E2723), const Color(0xFF263238),
+      const Color(0xFF880E4F), const Color(0xFF0D47A1),
     ];
     final List<List<Color>> gradientColors = [
       [const Color(0xFF434343), const Color(0xFF000000)],
@@ -77,17 +79,39 @@ class BumpCard extends StatelessWidget {
       [const Color(0xFF614385), const Color(0xFF516395)],
       [const Color(0xFF0F2027), const Color(0xFF203A43), const Color(0xFF2C5364)],
       [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)],
+      [const Color(0xFFFF512F), const Color(0xFFDD2476)], // Sunset
+      [const Color(0xFF11998e), const Color(0xFF38ef7d)], // Mint
+      [const Color(0xFFC94B4B), const Color(0xFF4B134F)], // Cherry
+      [const Color(0xFF00C9FF), const Color(0xFF92FE9D)], // Neon Green
+      [const Color(0xFFFC466B), const Color(0xFF3F5EFB)], // Neon Blue
     ];
 
     BoxDecoration baseDecoration;
     if (colorType == 'solid') {
       final color = solidColors[colorId < solidColors.length ? colorId : 0];
-      baseDecoration = BoxDecoration(color: color, borderRadius: BorderRadius.circular(24));
+      baseDecoration = BoxDecoration(
+        color: color, 
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      );
     } else {
       final colors = gradientColors[colorId < gradientColors.length ? colorId : 0];
       baseDecoration = BoxDecoration(
         gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors),
         borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       );
     }
 
@@ -129,6 +153,22 @@ class BumpCard extends StatelessWidget {
           ),
         ),
       );
+    } else if (texture == 'carbon') {
+      textureOverlay = ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: CustomPaint(
+          size: Size.infinite,
+          painter: _StripedPainter(color: Colors.black.withOpacity(0.1)),
+        ),
+      );
+    } else if (texture == 'dots') {
+      textureOverlay = ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: CustomPaint(
+          size: Size.infinite,
+          painter: _DotPainter(color: Colors.white.withOpacity(0.1)),
+        ),
+      );
     }
 
     // 데이터
@@ -138,7 +178,6 @@ class BumpCard extends StatelessWidget {
     final detail = data['company'] ?? data['location'] ?? "";
     final contact = data['phone'] ?? data['email'] ?? data['instagram'] ?? "";
     final String? mbti = data['mbti'];
-    // [제거됨] music, hobbies는 사용하지 않음
     final String? birthday = data['birthday'];
 
     return Stack(
@@ -265,4 +304,49 @@ class BumpCard extends StatelessWidget {
       ],
     );
   }
+}
+
+class _StripedPainter extends CustomPainter {
+  final Color color;
+  _StripedPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2;
+
+    for (double i = -size.height; i < size.width; i += 10) {
+      canvas.drawLine(
+        Offset(i, 0),
+        Offset(i + size.height, size.height),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _DotPainter extends CustomPainter {
+  final Color color;
+  _DotPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    const double step = 20;
+
+    for (double y = 0; y < size.height; y += step) {
+      for (double x = 0; x < size.width; x += step) {
+        if ((x / step).floor() % 2 == (y / step).floor() % 2) {
+           canvas.drawCircle(Offset(x + 10, y + 10), 2, paint);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

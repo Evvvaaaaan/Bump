@@ -1,10 +1,11 @@
 import 'package:bump/core/constants/app_colors.dart';
-import 'package:bump/core/services/auth_service.dart'; // [필수] AuthService import
+import 'package:bump/core/services/auth_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // [필수] Firestore import 추가
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart'; // 패키지 import
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,12 +17,49 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
-  // [익명 로그인 처리]
+
+  Future<void> _handleGoogleLogin() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = await AuthService().signInWithGoogle();
+      if (user != null) {
+        if (mounted) context.go('/');
+      } else {
+        print("Google 로그인 취소 또는 실패");
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("로그인 오류: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+  // [수정됨] 익명 로그인 + Firestore 데이터 생성 처리
   Future<void> _handleAnonymousLogin() async {
     setState(() => _isLoading = true);
     try {
-      await FirebaseAuth.instance.signInAnonymously();
-      if (mounted) context.go('/');
+      // 1. 익명 로그인 시도
+      final userCredential = await FirebaseAuth.instance.signInAnonymously();
+      final user = userCredential.user;
+
+      if (user != null) {
+        // 2. [핵심] 로그인 성공 직후, Firestore에 '내 정보' 강제 저장
+        // 이 과정이 있어야 상대방이 내 명함을 볼 수 있습니다.
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'uid': user.uid,
+          'displayName': 'Guest', // 이름이 없으면 화면에 안 뜨므로 기본값 지정
+          'email': '',            // 이메일 없음
+          'photoURL': '',         // 사진 없음
+          'isAnonymous': true,    // 익명 계정 표시
+          'createdAt': FieldValue.serverTimestamp(), // 가입 시간
+        });
+
+        // 3. 홈으로 이동
+        if (mounted) context.go('/');
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -37,14 +75,13 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleAppleLogin() async {
     setState(() => _isLoading = true);
     try {
-      // 1. AuthService의 Apple 로그인 함수 호출
       final user = await AuthService().signInWithApple();
 
       if (user != null) {
-        // 2. 로그인 성공 시 홈으로 이동
+        // AuthService 내부에서 이미 Firestore 저장을 처리한다고 가정합니다.
+        // 만약 AuthService에도 저장 로직이 없다면 거기도 추가해야 합니다.
         if (mounted) context.go('/');
       } else {
-        // 사용자가 취소했거나 실패한 경우
         print("Apple 로그인 취소 또는 실패");
       }
     } catch (e) {
@@ -120,28 +157,38 @@ class _LoginScreenState extends State<LoginScreen> {
                   
                   const Spacer(),
                   
-                  // [수정됨] Apple Login Button (공식 위젯 사용)
+                  // Apple Login Button
                   SizedBox(
-                    height: 50, // 버튼 높이 지정
+                    height: 50,
                     width: double.infinity,
                     child: SignInWithAppleButton(
-                      onPressed: _handleAppleLogin, // 핸들러 연결
-                      // 스타일: 다크모드 배경이므로 White 버튼 사용
+                      onPressed: _handleAppleLogin,
                       style: SignInWithAppleButtonStyle.white, 
-                      // 텍스트 커스텀 (기본값은 'Sign in with Apple')
                       text: "Sign in with Apple", 
-                      // 둥근 모서리 정도 (Guest 버튼과 비슷하게 맞춤)
                       borderRadius: const BorderRadius.all(Radius.circular(25)),
                     ),
                   ),
-                  
+                  const SizedBox(height: 16),
+
+                  // [추가] Google Login Button (커스텀 디자인)
+                  _buildLoginButton(
+                    // 주의: 구글 로고 아이콘이 없다면 Icons.login 등으로 대체하거나
+                    // assets에 구글 로고 png를 추가하여 Image.asset을 사용해야 합니다.
+                    // 여기서는 텍스트와 아이콘으로 구성합니다.
+                    icon: Icons.g_mobiledata, // 임시 아이콘 (로고 이미지 권장)
+                    label: "Sign in with Google",
+                    onTap: _handleGoogleLogin,
+                    color: Colors.white, // Apple 버튼과 동일하게 흰색 배경
+                    textColor: Colors.black, // 글자는 검은색
+                    isOutlined: false,
+                  ),
                   const SizedBox(height: 16),
                   
-                  // Guest Login (기존 디자인 유지)
+                  // Guest Login Button
                   _buildLoginButton(
                     icon: Icons.person_outline, 
                     label: "Guest Login", 
-                    onTap: _handleAnonymousLogin,
+                    onTap: _handleAnonymousLogin, // 수정된 함수 연결
                     color: Colors.white.withOpacity(0.1),
                     textColor: Colors.white,
                     isOutlined: true,
@@ -163,7 +210,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // 커스텀 버튼 빌더 (게스트 로그인용)
   Widget _buildLoginButton({
     required IconData icon, 
     required String label, 
@@ -175,10 +221,10 @@ class _LoginScreenState extends State<LoginScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 50, // Apple 버튼과 높이 맞춤
+        height: 50,
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(25), // Apple 버튼과 라운드 맞춤
+          borderRadius: BorderRadius.circular(25),
           border: isOutlined ? Border.all(color: Colors.white30) : null,
         ),
         child: Row(

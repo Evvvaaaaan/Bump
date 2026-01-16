@@ -51,6 +51,7 @@ dependencies:
   flutter_contacts: ^1.1.9+2
   sign_in_with_apple: ^7.0.1
   crypto: ^3.0.7
+  google_sign_in: ^6.2.1
 
 dev_dependencies:
   flutter_test:
@@ -104,3 +105,54 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# name: bump
+# description: "A new Flutter project."
+# publish_to: 'none' 
+
+# version: 1.0.0+1
+
+# environment:
+#   sdk: ^3.10.4
+
+# dependencies:
+#   flutter:
+#     sdk: flutter
+
+#   cupertino_icons: ^1.0.8
+#   flutter_riverpod: ^2.6.1
+#   go_router: ^14.6.0
+#   sensors_plus: ^6.1.0
+#   flutter_animate: ^4.5.2
+#   google_fonts: ^6.2.1
+  
+#   # vibration은 여전히 오류 가능성이 있으므로 주석 처리 유지
+#   # vibration: ^1.9.0             
+  
+#   glassmorphism: ^3.0.0
+  
+#   # [핵심 수정] iOS와 Android 모두 잘 작동하는 안정적인 버전 조합입니다.
+#   # 너무 최신 버전(gRPC 이슈) 대신 검증된 버전을 사용합니다.
+#   firebase_core: ^2.27.0
+#   firebase_auth: ^4.17.8
+#   cloud_firestore: ^4.15.8
+#   firebase_storage: ^11.6.9
+  
+#   slide_to_act: ^2.0.2
+#   image_picker: ^1.0.7
+#   url_launcher: ^6.2.4
+  
+#   flutter_contacts: ^1.1.9+2
+  
+#   # 안드로이드 빌드 오류 방지를 위해 이 버전은 유지해야 합니다.
+#   sign_in_with_apple: ^6.1.0
+  
+#   crypto: ^3.0.3
+
+# dev_dependencies:
+#   flutter_test:
+#     sdk: flutter
+#   flutter_lints: ^3.0.1
+
+# flutter:
+#   uses-material-design: true
