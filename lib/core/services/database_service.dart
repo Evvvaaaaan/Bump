@@ -6,8 +6,13 @@ import 'dart:io';
 final databaseServiceProvider = Provider<DatabaseService>((ref) => DatabaseService());
 
 class DatabaseService {
+  // [변수 선언]
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  
+  // 호환성을 위한 getter
+  FirebaseFirestore get _firestore => _db; 
+
   // ==================================================================
   // 1. 프로필 관리 (Profile)
   // ==================================================================
@@ -21,7 +26,7 @@ class DatabaseService {
     try {
       await _db.collection('users').doc(uid).set({
         'profiles': {
-          mode: data, // 예: business: { name: '홍길동', ... }
+          mode: data,
         },
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -31,16 +36,12 @@ class DatabaseService {
       throw e;
     }
   }
+
+  // 프로필 이미지 업로드
   Future<String> uploadProfileImage(String uid, String mode, File imageFile) async {
     try {
-      // 파일 경로: users/{uid}/{mode}_profile.jpg
       final ref = _storage.ref().child('users/$uid/${mode}_profile.jpg');
-      
-      // 파일 업로드
-  
       TaskSnapshot snapshot = await ref.putFile(imageFile);
-      
-      // 다운로드 URL 가져오기
       final url = await snapshot.ref.getDownloadURL();
       return url;
     } catch (e) {
@@ -60,54 +61,88 @@ class DatabaseService {
     }
   }
 
-  // 내 정보 실시간 감시 (Stream) - 홈 화면용
+  // 내 정보 실시간 감시 (Stream)
   Stream<DocumentSnapshot> getProfileStream(String uid) {
     return _db.collection('users').doc(uid).snapshots();
   }
 
   // ==================================================================
-  // 2. 명함 교환 및 히스토리 (Connections)
+  // 2. 명함 교환 및 히스토리 (Contacts로 통합됨)
   // ==================================================================
 
-  // 상대방 명함 저장 (매칭 성공 시)
+  // [범프 매칭용] 상대방 명함 저장
+  // ==================================================================
+  // 2. 명함 교환 및 히스토리 (완벽 통일 버전)
+  // ==================================================================
+
+  // [저장 1] 범프 매칭 시 저장
   Future<void> saveConnection({
     required String myUid,
     required String partnerUid,
     required Map<String, dynamic> partnerData,
   }) async {
+    if (partnerUid.isEmpty) return;
+
     try {
       await _db
           .collection('users')
           .doc(myUid)
-          .collection('connections')
-          .doc(partnerUid)
+          .collection('contacts')
+          .doc(partnerUid) // [중요] 문서 ID는 무조건 상대방 UID
           .set({
-        'partnerUid': partnerUid,
-        'metAt': FieldValue.serverTimestamp(),
-        'snapshot': partnerData, // 만난 시점의 데이터 박제
-      });
-      print("✅ 명함 교환 저장 완료 (${partnerData['name']})");
+            ...partnerData, // [중요] 데이터를 쫙 펼쳐서 저장 (Flat)
+            'uid': partnerUid,
+            'savedAt': FieldValue.serverTimestamp(),
+            'isBumped': true,
+          }); // [중요] 덮어쓰기 방지
+      print("✅ 범프 저장 완료");
     } catch (e) {
-      print("❌ 명함 저장 실패: $e");
+      print("❌ 범프 저장 실패: $e");
+    }
+  }
+  
+  // [저장 2] 리스트에서 수동 저장
+  Future<void> saveContact({
+    required String myUid, 
+    required String targetUid, 
+    required Map<String, dynamic> targetProfileData
+  }) async {
+    if (targetUid.isEmpty) throw Exception("UID 없음");
+
+    try {
+      await _db
+          .collection('users')
+          .doc(myUid)
+          .collection('contacts')
+          .doc(targetUid) // [중요] 문서 ID는 무조건 상대방 UID
+          .set({
+            ...targetProfileData, // [중요] 데이터를 쫙 펼쳐서 저장
+            'uid': targetUid,
+            'savedAt': FieldValue.serverTimestamp(),
+            'isBumped': false,
+          }); // [중요] 덮어쓰기 방지
+      print("✅ 수동 저장 완료");
+    } catch (e) {
+      print("❌ 수동 저장 실패: $e");
+      throw Exception("저장 실패");
     }
   }
 
-  // 내 명함첩 목록 가져오기 (Stream) - 히스토리 화면용
+  // [불러오기] 명함첩 목록 (contacts 컬렉션)
   Stream<List<Map<String, dynamic>>> getConnectionsStream(String uid) {
     return _db
         .collection('users')
         .doc(uid)
-        .collection('connections')
-        .orderBy('metAt', descending: true)
+        .collection('contacts') // 경로 확인
+        .orderBy('savedAt', descending: true) // 정렬 확인
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
   }
-
   // ==================================================================
   // 3. 범프 매칭 시스템 (Bump Matching)
   // ==================================================================
 
-  // 매칭 요청 등록 (슬라이드 시)
+  // 매칭 요청 생성
   Future<String> createBumpRequest(String uid, Map<String, dynamic> myCardData) async {
     print("🚀 [DEBUG] createBumpRequest 호출됨! UID: $uid");
     try {
@@ -118,7 +153,6 @@ class DatabaseService {
         'status': 'searching',
         'matchedWith': null,
       });
-      print("✅ [DEBUG] 매칭 요청 생성됨 ID: ${ref.id}");
       return ref.id;
     } catch (e) {
       print("❌ [DEBUG] 매칭 요청 생성 실패: $e");
@@ -126,7 +160,7 @@ class DatabaseService {
     }
   }
 
-  // 매칭 요청 취소 (화면 나갈 때)
+  // 매칭 요청 취소
   Future<void> cancelBumpRequest(String requestId) async {
     try {
       await _db.collection('bump_requests').doc(requestId).delete();
@@ -136,14 +170,13 @@ class DatabaseService {
     }
   }
 
-  // 내 요청 상태 감시 (매칭 성사 여부 확인용)
+  // 요청 상태 감시
   Stream<DocumentSnapshot> getBumpRequestStream(String requestId) {
     return _db.collection('bump_requests').doc(requestId).snapshots();
   }
 
-  // 매칭 시도 로직 (상대방 찾기)
+  // 매칭 시도 로직
   Future<void> findAndMatch(String myRequestId, String myUid) async {
-    // 5초 이내의 유효한 요청만 검색 (유령 데이터 방지)
     final now = DateTime.now();
     final validTime = now.subtract(const Duration(seconds: 5));
 
@@ -158,25 +191,19 @@ class DatabaseService {
       for (var doc in query.docs) {
         final data = doc.data() as Map<String, dynamic>;
 
-        // 내 요청이거나 이미 나인 경우 패스
         if (doc.id == myRequestId) continue;
         if (data['requesterUid'] == myUid) continue;
 
-        String partnerRequestId = doc.id;
-
-        // 트랜잭션으로 안전하게 매칭 성사
         await _db.runTransaction((transaction) async {
           DocumentSnapshot partnerDoc = await transaction.get(doc.reference);
-          if (!partnerDoc.exists) return; // 이미 삭제된 요청이면 패스
+          if (!partnerDoc.exists) return; 
 
-          // 1. 상대방 문서 업데이트 (너는 나랑 매칭됐어)
           transaction.update(doc.reference, {
             'status': 'matched',
             'matchedWith': myUid,
             'matchedRequestId': myRequestId,
           });
 
-          // 2. 내 문서 업데이트 (나는 너랑 매칭됐어)
           transaction.update(_db.collection('bump_requests').doc(myRequestId), {
             'status': 'matched',
             'matchedWith': data['requesterUid'],
@@ -185,10 +212,10 @@ class DatabaseService {
         });
 
         print("🎉 매칭 성공! 상대방: ${data['requesterUid']}");
-        return; // 매칭 성공 시 종료
+        return; 
       }
     } catch (e) {
-      print("⚠️ 매칭 시도 중 오류(또는 경합): $e");
+      print("⚠️ 매칭 시도 중 오류: $e");
     }
   }
 }

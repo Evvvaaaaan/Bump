@@ -1,78 +1,137 @@
 import 'package:bump/core/services/database_service.dart';
+import 'package:bump/features/card/card_detail_screen.dart'; // [필수] 상세 화면 파일 import
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class HistoryScreen extends ConsumerWidget {
   const HistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return const Scaffold(body: Center(child: Text("로그인 필요")));
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    
+    // 로그인이 안 된 경우 처리
+    if (uid == null) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(child: Text("로그인이 필요합니다.", style: TextStyle(color: Colors.white))),
+      );
+    }
+
+    final dbService = ref.watch(databaseServiceProvider);
 
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text("명함첩", style: GoogleFonts.outfit()),
+        title: const Text("내 명함첩", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => context.pop(),
+        ),
       ),
+      // [핵심 1] DatabaseService에서 contacts 컬렉션을 가져오는 함수 연결
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: ref.read(databaseServiceProvider).getConnectionsStream(user.uid),
+        stream: dbService.getConnectionsStream(uid), 
         builder: (context, snapshot) {
-          if (snapshot.hasError) return Center(child: Text("오류: ${snapshot.error}"));
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          // 에러 처리
+          if (snapshot.hasError) {
+            return Center(child: Text("오류가 발생했습니다: ${snapshot.error}", style: const TextStyle(color: Colors.white)));
+          }
+          // 로딩 처리
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Colors.white));
+          }
 
-          final list = snapshot.data!;
+          final contacts = snapshot.data ?? [];
 
-          if (list.isEmpty) {
+          // 데이터가 없을 때
+          if (contacts.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.style_outlined, size: 60, color: Colors.white24),
-                  const SizedBox(height: 20),
-                  const Text("아직 교환한 명함이 없습니다.", style: TextStyle(color: Colors.white38)),
+                children: const [
+                  Icon(Icons.folder_off_outlined, size: 60, color: Colors.white24),
+                  SizedBox(height: 20),
+                  Text("저장된 명함이 없습니다.", style: TextStyle(color: Colors.white54)),
                 ],
               ),
             );
           }
 
-          return ListView.builder(
-            itemCount: list.length,
-            padding: const EdgeInsets.all(16),
+          // 리스트 출력
+          return ListView.separated(
+            padding: const EdgeInsets.all(20),
+            itemCount: contacts.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 15),
             itemBuilder: (context, index) {
-              final item = list[index];
-              // DB에 저장된 snapshot 데이터 가져오기
-              final data = item['snapshot'] as Map<String, dynamic>? ?? {};
-              
-              return Card(
-                color: Colors.white10,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
-                  onTap: () {
-                    // [핵심] 상세 화면으로 데이터 전달하며 이동
-                    context.push('/card_detail', extra: data);
-                  },
-                  leading: CircleAvatar(
-                    backgroundColor: const Color(0xFF4B6EFF),
-                    child: Text(
-                      (data['name'] as String?)?.substring(0, 1) ?? "?",
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              final contact = contacts[index];
+
+              // [핵심 2] 데이터 필드 추출 (contacts 구조는 snapshot 껍데기 없이 바로 데이터가 있음)
+              final name = contact['name'] ?? '이름 없음';
+              final role = contact['role'] ?? contact['bio'] ?? '';
+              final detail = contact['company'] ?? contact['location'] ?? '';
+              final photoUrl = contact['photoUrl'];
+
+              // [핵심 3] 클릭 이벤트 추가 (GestureDetector)
+              return GestureDetector(
+                onTap: () {
+                  // 상세 화면으로 이동하며 데이터 전달
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CardDetailScreen(cardData: contact),
                     ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white10),
                   ),
-                  title: Text(
-                    data['name'] ?? "이름 없음", 
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)
+                  child: Row(
+                    children: [
+                      // 프로필 이미지
+                      CircleAvatar(
+                        radius: 28,
+                        backgroundColor: Colors.grey[800],
+                        backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                            ? NetworkImage(photoUrl)
+                            : null,
+                        child: (photoUrl == null || photoUrl.isEmpty)
+                            ? const Icon(Icons.person, color: Colors.white54)
+                            : null,
+                      ),
+                      const SizedBox(width: 16),
+                      // 텍스트 정보
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            if (role.isNotEmpty || detail.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                "$role ${detail.isNotEmpty ? '· $detail' : ''}",
+                                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ]
+                          ],
+                        ),
+                      ),
+                      // 화살표 아이콘
+                      const Icon(Icons.chevron_right, color: Colors.white24),
+                    ],
                   ),
-                  subtitle: Text(
-                    "${data['company'] ?? ''} · ${data['role'] ?? ''}",
-                    style: const TextStyle(color: Colors.white60)
-                  ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.white30),
                 ),
               );
             },

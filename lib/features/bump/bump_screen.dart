@@ -272,16 +272,19 @@ class _BumpScreenState extends ConsumerState<BumpScreen> {
 // ------------------------------------------------------------------
 // [하단 시트 위젯] 주변 사용자 목록
 // ------------------------------------------------------------------
-class BumpMatchListSheet extends StatelessWidget {
+// ------------------------------------------------------------------
+// [하단 시트 위젯] 주변 사용자 목록 (수정됨)
+// ------------------------------------------------------------------
+class BumpMatchListSheet extends ConsumerWidget { 
   final String myRequestId; 
 
   const BumpMatchListSheet({super.key, required this.myRequestId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final myUid = FirebaseAuth.instance.currentUser?.uid;
     
-    // 검색 기준: 현재 시간보다 15초 전부터 생성된 요청만 검색
+    // 검색 기준: 최근 15초
     final searchTime = DateTime.now().subtract(const Duration(seconds: 15));
 
     return Container(
@@ -305,8 +308,6 @@ class BumpMatchListSheet extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          const Text("연결할 상대를 선택해주세요.", style: TextStyle(color: Colors.white54, fontSize: 14)),
-          const SizedBox(height: 20),
           
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
@@ -315,36 +316,29 @@ class BumpMatchListSheet extends StatelessWidget {
                   .where('timestamp', isGreaterThan: searchTime) 
                   .snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.hasError) return Center(child: Text("오류가 발생했습니다.", style: const TextStyle(color: Colors.white)));
+                if (snapshot.hasError) return const Center(child: Text("오류가 발생했습니다.", style: TextStyle(color: Colors.white)));
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.white));
 
-                // [수정] requesterUid로 필터링하여 나를 제외
+                // 나를 제외한 목록 필터링
                 final docs = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   return data['requesterUid'] != myUid; 
                 }).toList();
 
                 if (docs.isEmpty) {
-                  return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.search_off, size: 50, color: Colors.white24),
-                        SizedBox(height: 15),
-                        Text("주변에 흔든 사람이 없어요.\n친구와 동시에 흔들어보세요!", textAlign: TextAlign.center, style: TextStyle(color: Colors.white30)),
-                      ],
-                    ),
-                  );
+                  return const Center(child: Text("주변에 흔든 사람이 없어요.", style: TextStyle(color: Colors.white54)));
                 }
 
                 return ListView.builder(
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
                     final data = docs[index].data() as Map<String, dynamic>;
-                    // [수정] 상대방 UID 가져오기 (requesterUid 사용)
-                    final partnerUid = data['requesterUid'];
                     
-                    final cardData = data['cardData'] ?? {};
+                    // [핵심 수정 1] 리스트의 각 항목에서 '상대방 UID'를 정확히 꺼냅니다.
+                    // 실수로 myUid를 쓰면 안 됩니다!
+                    final String partnerUid = data['requesterUid']; 
+                    final Map<String, dynamic> cardData = data['cardData'] ?? {};
+                    
                     final name = cardData['name'] ?? '알 수 없음';
                     final role = cardData['role'] ?? '정보 없음';
                     final photoUrl = cardData['photoURL'] ?? '';
@@ -357,34 +351,49 @@ class BumpMatchListSheet extends StatelessWidget {
                         border: Border.all(color: Colors.white10),
                       ),
                       child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         leading: CircleAvatar(
-                          radius: 25,
-                          backgroundColor: Colors.grey[800],
                           backgroundImage: (photoUrl.isNotEmpty) ? NetworkImage(photoUrl) : null,
-                          child: (photoUrl.isEmpty) ? const Icon(Icons.person, color: Colors.white) : null,
+                          child: (photoUrl.isEmpty) ? const Icon(Icons.person) : null,
                         ),
-                        title: Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                        subtitle: Text(role, style: const TextStyle(color: Colors.white60, fontSize: 13)),
+                        title: Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        subtitle: Text(role, style: const TextStyle(color: Colors.white70)),
+                        
                         trailing: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
                           ),
                           onPressed: () async {
-                            // [연결] 내 요청 상태를 matched로 변경 -> StreamBuilder가 감지하여 성공 화면으로 전환
-                            await FirebaseFirestore.instance.collection('bump_requests').doc(myRequestId).update({
-                              'status': 'matched',
-                              'matchedWith': partnerUid,
-                              'partnerCardData': cardData, 
-                            });
-                            
-                            if (context.mounted) {
-                              context.pop(); // 리스트 닫기
+                            final currentUser = FirebaseAuth.instance.currentUser;
+                            if (currentUser == null) return;
+
+                            // [디버깅 로그] 버튼 누를 때 콘솔 확인
+                            print("------------------------------");
+                            print("저장 시도 -> 내 UID: ${currentUser.uid}");
+                            print("저장 시도 -> 상대방 UID: $partnerUid"); // <-- 이 값이 매번 달라야 정상!
+                            print("------------------------------");
+
+                            try {
+                              // [핵심 수정 2] 위에서 꺼낸 partnerUid를 targetUid에 넣습니다.
+                              await ref.read(databaseServiceProvider).saveContact(
+                                myUid: currentUser.uid,
+                                targetUid: partnerUid, // [중요] 여기에 변수 partnerUid가 들어가야 합니다.
+                                targetProfileData: cardData,
+                              );
+
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("$name님을 저장했습니다!"), backgroundColor: Colors.green),
+                                );
+                                Navigator.pop(context); // 저장 후 창 닫기
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("저장 실패: $e")));
+                              }
                             }
                           },
-                          child: const Text("연결", style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: const Text("연결"),
                         ),
                       ),
                     );
