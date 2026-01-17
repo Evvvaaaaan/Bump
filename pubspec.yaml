@@ -51,7 +51,8 @@ dependencies:
   sign_in_with_apple: ^7.0.1
   crypto: ^3.0.7
   google_sign_in: ^6.2.1
-
+  quick_actions: ^1.0.6
+  geolocator: ^10.1.0
 
 dev_dependencies:
   flutter_test:

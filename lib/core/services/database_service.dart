@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:geolocator/geolocator.dart'; // [필수] 위치 정보 패키지
 import 'dart:io';
 
 final databaseServiceProvider = Provider<DatabaseService>((ref) => DatabaseService());
@@ -67,15 +68,10 @@ class DatabaseService {
   }
 
   // ==================================================================
-  // 2. 명함 교환 및 히스토리 (Contacts로 통합됨)
+  // 2. 명함 교환 및 히스토리 (Contacts)
   // ==================================================================
 
-  // [범프 매칭용] 상대방 명함 저장
-  // ==================================================================
-  // 2. 명함 교환 및 히스토리 (완벽 통일 버전)
-  // ==================================================================
-
-  // [저장 1] 범프 매칭 시 저장
+  // [저장 1] 범프 매칭 시 저장 (교체 모드)
   Future<void> saveConnection({
     required String myUid,
     required String partnerUid,
@@ -88,20 +84,21 @@ class DatabaseService {
           .collection('users')
           .doc(myUid)
           .collection('contacts')
-          .doc(partnerUid) // [중요] 문서 ID는 무조건 상대방 UID
+          .doc(partnerUid) // 상대방 UID를 키로 사용
           .set({
-            ...partnerData, // [중요] 데이터를 쫙 펼쳐서 저장 (Flat)
+            ...partnerData,
             'uid': partnerUid,
             'savedAt': FieldValue.serverTimestamp(),
             'isBumped': true,
-          }); // [중요] 덮어쓰기 방지
-      print("✅ 범프 저장 완료");
+          }); // merge 옵션 제거 (새 정보로 교체)
+          
+      print("✅ 범프 명함 교체 완료");
     } catch (e) {
-      print("❌ 범프 저장 실패: $e");
+      print("❌ 저장 실패: $e");
     }
   }
   
-  // [저장 2] 리스트에서 수동 저장
+  // [저장 2] 리스트에서 수동 저장 (교체 모드)
   Future<void> saveContact({
     required String myUid, 
     required String targetUid, 
@@ -114,53 +111,58 @@ class DatabaseService {
           .collection('users')
           .doc(myUid)
           .collection('contacts')
-          .doc(targetUid) // [중요] 문서 ID는 무조건 상대방 UID
+          .doc(targetUid) // 상대방 UID를 키로 사용
           .set({
-            ...targetProfileData, // [중요] 데이터를 쫙 펼쳐서 저장
+            ...targetProfileData,
             'uid': targetUid,
             'savedAt': FieldValue.serverTimestamp(),
             'isBumped': false,
-          }); // [중요] 덮어쓰기 방지
-      print("✅ 수동 저장 완료");
+          }); // merge 옵션 제거 (새 정보로 교체)
+          
+      print("✅ 수동 명함 교체 완료");
     } catch (e) {
-      print("❌ 수동 저장 실패: $e");
+      print("❌ 저장 실패: $e");
       throw Exception("저장 실패");
     }
   }
 
-  // [불러오기] 명함첩 목록 (contacts 컬렉션)
+  // [불러오기] 명함첩 목록
   Stream<List<Map<String, dynamic>>> getConnectionsStream(String uid) {
     return _db
         .collection('users')
         .doc(uid)
-        .collection('contacts') // 경로 확인
-        .orderBy('savedAt', descending: true) // 정렬 확인
+        .collection('contacts')
+        .orderBy('savedAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
   }
+
   // ==================================================================
-  // 3. 범프 매칭 시스템 (Bump Matching)
+  // 3. 범프 매칭 시스템 (Bump Matching - 위치 기반)
   // ==================================================================
 
-  // 매칭 요청 생성
+  // [매칭 요청 생성] 위치 정보 포함
   Future<String> createBumpRequest(String uid, Map<String, dynamic> myCardData) async {
-    print("🚀 [DEBUG] createBumpRequest 호출됨! UID: $uid");
     try {
+      // 1. 현재 위치 가져오기 (이 함수가 클래스 내부에 정의되어 있어야 함)
+      Position position = await _determinePosition();
+
       DocumentReference ref = await _db.collection('bump_requests').add({
         'requesterUid': uid,
         'cardData': myCardData,
         'timestamp': FieldValue.serverTimestamp(),
         'status': 'searching',
         'matchedWith': null,
+        // [핵심] 위치 정보 저장
+        'location': GeoPoint(position.latitude, position.longitude), 
       });
       return ref.id;
     } catch (e) {
-      print("❌ [DEBUG] 매칭 요청 생성 실패: $e");
+      print("❌ 매칭 요청 실패: $e");
       rethrow;
     }
   }
 
-  // 매칭 요청 취소
   Future<void> cancelBumpRequest(String requestId) async {
     try {
       await _db.collection('bump_requests').doc(requestId).delete();
@@ -170,12 +172,10 @@ class DatabaseService {
     }
   }
 
-  // 요청 상태 감시
   Stream<DocumentSnapshot> getBumpRequestStream(String requestId) {
     return _db.collection('bump_requests').doc(requestId).snapshots();
   }
 
-  // 매칭 시도 로직
   Future<void> findAndMatch(String myRequestId, String myUid) async {
     final now = DateTime.now();
     final validTime = now.subtract(const Duration(seconds: 5));
@@ -218,4 +218,76 @@ class DatabaseService {
       print("⚠️ 매칭 시도 중 오류: $e");
     }
   }
-}
+
+  // ==================================================================
+  // 4. 유틸리티 함수 (클래스 내부)
+  // ==================================================================
+  
+  // [누락되었던 함수] 현재 위치 권한 확인 및 좌표 반환
+  // 이 함수가 클래스(DatabaseService) 안에 있어야 합니다.
+  Future<Position> _determinePosition() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // 1. 위치 서비스 켜져있는지 확인
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return Future.error('위치 서비스(GPS)가 꺼져 있습니다.');
+    }
+
+    // 2. 권한 확인
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return Future.error('위치 권한이 거부되었습니다.');
+      }
+    }
+    
+    if (permission == LocationPermission.deniedForever) {
+      return Future.error('위치 권한이 영구적으로 거부되었습니다.');
+    }
+
+    // 3. 현재 위치 반환
+    return await Geolocator.getCurrentPosition();
+  }
+  
+  // ==================================================================
+  // 5. 소셜 인터랙션 (스티커 방명록)
+  // ==================================================================
+
+  Future<void> sendSticker({
+    required String targetUid,
+    required String myUid, 
+    required String myName,
+    required String stickerType,
+  }) async {
+    try {
+      await _db
+          .collection('users')
+          .doc(targetUid)
+          .collection('guestbook')
+          .add({
+        'fromUid': myUid,
+        'fromName': myName,
+        'stickerType': stickerType,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      print("✅ 스티커 전송 완료");
+    } catch (e) {
+      print("❌ 스티커 전송 실패: $e");
+    }
+  }
+
+  Stream<List<Map<String, dynamic>>> getGuestbookStream(String uid) {
+    return _db
+        .collection('users')
+        .doc(uid)
+        .collection('guestbook')
+        .orderBy('timestamp', descending: true)
+        .limit(20)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+  }
+
+} // 클래스 끝
