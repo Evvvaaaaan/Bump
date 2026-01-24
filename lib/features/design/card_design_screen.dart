@@ -1,7 +1,13 @@
 import 'package:bump/core/services/database_service.dart';
+// [기존 디자인]
 import 'package:bump/features/editor/widgets/minimal_template_card.dart';
-import 'package:bump/features/editor/widgets/dark_geometric_card.dart'; // [신규]
-import 'package:bump/features/editor/widgets/paper_texture_card.dart'; // [신규]
+import 'package:bump/features/editor/widgets/dark_geometric_card.dart';
+import 'package:bump/features/editor/widgets/paper_texture_card.dart';
+// [신규 디자인 임포트 추가]
+import 'package:bump/features/editor/widgets/glassmorphism_card.dart';
+import 'package:bump/features/editor/widgets/aurora_gradient_card.dart';
+import 'package:bump/features/editor/widgets/neo_brutalism_card.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -116,20 +122,29 @@ class _CardDesignScreenState extends ConsumerState<CardDesignScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text("템플릿 선택", style: TextStyle(color: Colors.white54, fontSize: 14)),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 20), // 간격 조정
                   Expanded(
                     child: ListView(
                       scrollDirection: Axis.horizontal,
                       children: [
-                        _buildDesignOption("Minimal Beige", Icons.light_mode, "minimal_beige"),
+                        // --- [NEW] 새로운 디자인 ---
+                        _buildDesignOption("Glass", Icons.blur_on, "glass_morphism"),
                         const SizedBox(width: 12),
-                        _buildDesignOption("Dark Geo", Icons.hexagon, "dark_geometric"), // [신규]
+                        _buildDesignOption("Aurora", Icons.palette, "aurora_gradient"),
                         const SizedBox(width: 12),
-                        _buildDesignOption("Paper White", Icons.description, "paper_white"), // [신규]
+                        _buildDesignOption("Neo Brutal", Icons.tag, "neo_brutalism"),
                         const SizedBox(width: 12),
-                        _buildDesignOption("Paper Kraft", Icons.recycling, "paper_kraft"), // [신규]
+                        
+                        // --- [기존 디자인] ---
+                        _buildDesignOption("Dark Geo", Icons.hexagon, "dark_geometric"),
                         const SizedBox(width: 12),
-                        _buildDesignOption("Paper Linen", Icons.grid_on, "paper_linen"), // [신규]
+                        _buildDesignOption("Minimal", Icons.light_mode, "minimal_beige"),
+                        const SizedBox(width: 12),
+                        _buildDesignOption("Paper W", Icons.description, "paper_white"),
+                        const SizedBox(width: 12),
+                        _buildDesignOption("Paper K", Icons.recycling, "paper_kraft"),
+                        const SizedBox(width: 12),
+                        _buildDesignOption("Paper L", Icons.grid_on, "paper_linen"),
                       ],
                     ),
                   ),
@@ -143,8 +158,17 @@ class _CardDesignScreenState extends ConsumerState<CardDesignScreen> {
   }
 
   Widget _buildPreviewCard(Map<String, dynamic> data) {
-    // 템플릿 ID에 따라 위젯 분기
+    // [수정] 모든 템플릿 케이스 연결
     switch (_selectedTemplateId) {
+      // --- 신규 ---
+      case 'glass_morphism':
+        return GlassmorphismCard(data: data, modeIndex: widget.modeIndex);
+      case 'aurora_gradient':
+        return AuroraGradientCard(data: data, modeIndex: widget.modeIndex);
+      case 'neo_brutalism':
+        return NeoBrutalismCard(data: data, modeIndex: widget.modeIndex);
+      
+      // --- 기존 ---
       case 'dark_geometric':
         return DarkGeometricCard(data: data, modeIndex: widget.modeIndex);
       case 'paper_white':
@@ -153,6 +177,7 @@ class _CardDesignScreenState extends ConsumerState<CardDesignScreen> {
         return PaperTextureCard(data: data, modeIndex: widget.modeIndex, type: PaperType.kraft);
       case 'paper_linen':
         return PaperTextureCard(data: data, modeIndex: widget.modeIndex, type: PaperType.linen);
+      case 'minimal_beige':
       default:
         return MinimalTemplateCard(data: data, modeIndex: widget.modeIndex);
     }

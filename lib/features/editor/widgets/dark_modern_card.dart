@@ -57,8 +57,7 @@ class DarkModernCard extends StatelessWidget {
               width: 150, height: 150,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.blueAccent.withOpacity(0.1),
-                blurRadius: 50,
+                color: Colors.blueAccent.withOpacity(0.1)
               ),
             ),
           ),

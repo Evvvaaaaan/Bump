@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:bump/features/editor/widgets/minimal_template_card.dart';
 import 'package:bump/features/editor/widgets/dark_geometric_card.dart';
 import 'package:bump/features/editor/widgets/paper_texture_card.dart';
+import 'package:bump/features/editor/widgets/glassmorphism_card.dart';
+import 'package:bump/features/editor/widgets/aurora_gradient_card.dart';
+import 'package:bump/features/editor/widgets/neo_brutalism_card.dart';
 // import 'package:bump/features/editor/widgets/dark_modern_card.dart'; // 필요시 주석 해제
 
 class CardRenderer extends StatelessWidget {
@@ -32,6 +35,15 @@ class CardRenderer extends StatelessWidget {
         : modeIndex;
 
     switch (templateId) {
+      case 'glass_morphism':
+        return GlassmorphismCard(data: safeData, modeIndex: safeModeIndex);
+        
+      case 'neo_brutalism':
+        return NeoBrutalismCard(data: safeData, modeIndex: safeModeIndex);
+      
+      case 'aurora_gradient':
+        return AuroraGradientCard(data: safeData, modeIndex: safeModeIndex);
+
       case 'dark_geometric':
         return DarkGeometricCard(data: safeData, modeIndex: safeModeIndex);
       
