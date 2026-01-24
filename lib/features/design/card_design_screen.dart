@@ -1,4 +1,7 @@
-import 'package:bump/features/home/widgets/bump_card.dart';
+import 'package:bump/core/services/database_service.dart';
+import 'package:bump/features/editor/widgets/minimal_template_card.dart';
+import 'package:bump/features/editor/widgets/dark_geometric_card.dart'; // [신규]
+import 'package:bump/features/editor/widgets/paper_texture_card.dart'; // [신규]
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -11,80 +14,36 @@ class CardDesignScreen extends ConsumerStatefulWidget {
   ConsumerState<CardDesignScreen> createState() => _CardDesignScreenState();
 }
 
-class _CardDesignScreenState extends ConsumerState<CardDesignScreen> with SingleTickerProviderStateMixin {
-  late TabController _colorTabController;
-  String _selectedColorType = 'gradient'; // 'solid' or 'gradient'
-  int _selectedColorId = 0;
-  String _selectedTexture = 'glass'; // 'glass' or 'metal'
+class _CardDesignScreenState extends ConsumerState<CardDesignScreen> {
+  String _selectedTemplateId = 'minimal_beige';
   bool _isLoading = false;
   Map<String, dynamic> _previewData = {};
-
-  // 색상 프리셋 (BumpCard와 동일하게 맞춰야 함)
-  // 색상 프리셋 (BumpCard와 동일하게 맞춰야 함)
-  final List<Color> _solidColors = [
-    Colors.grey.shade800, const Color(0xFF1A237E), const Color(0xFF004D40),
-    const Color(0xFFB71C1C), const Color(0xFF4A148C), Colors.black,
-    const Color(0xFFE65100), const Color(0xFF3E2723), const Color(0xFF263238),
-    const Color(0xFF880E4F), const Color(0xFF0D47A1),
-  ];
-  final List<List<Color>> _gradientColors = [
-    [const Color(0xFF434343), const Color(0xFF000000)],
-    [const Color(0xFF2C3E50), const Color(0xFF4CA1AF)],
-    [const Color(0xFF614385), const Color(0xFF516395)],
-    [const Color(0xFF0F2027), const Color(0xFF203A43), const Color(0xFF2C5364)],
-    [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)],
-    [const Color(0xFFFF512F), const Color(0xFFDD2476)], // Sunset
-    [const Color(0xFF11998e), const Color(0xFF38ef7d)], // Mint
-    [const Color(0xFFC94B4B), const Color(0xFF4B134F)], // Cherry
-    [const Color(0xFF00C9FF), const Color(0xFF92FE9D)], // Neon Green
-    [const Color(0xFFFC466B), const Color(0xFF3F5EFB)], // Neon Blue
-  ];
-  // 질감 옵션
-  final List<Map<String, dynamic>> _textureOptions = [
-    {'id': 'glass', 'label': '유리', 'icon': Icons.blur_on},
-    {'id': 'metal', 'label': '메탈', 'icon': Icons.horizontal_rule},
-    {'id': 'carbon', 'label': '카본', 'icon': Icons.grid_3x3},
-    {'id': 'dots', 'label': '도트', 'icon': Icons.scatter_plot},
-  ];
 
   @override
   void initState() {
     super.initState();
-    _colorTabController = TabController(length: 2, vsync: this);
-    _colorTabController.addListener(() {
-      if (_colorTabController.indexIsChanging) {
-        setState(() {
-          _selectedColorType = _colorTabController.index == 0 ? 'solid' : 'gradient';
-          _selectedColorId = 0; // 탭 변경 시 선택 초기화
-        });
-      }
-    });
     _loadCurrentDesign();
   }
 
-  @override
-  void dispose() {
-    _colorTabController.dispose();
-    super.dispose();
-  }
+  String get _currentModeKey => ['business', 'social', 'private'][widget.modeIndex];
 
   Future<void> _loadCurrentDesign() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
-    final modeKey = ['business', 'social', 'private'][widget.modeIndex];
+    
     final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
     if (doc.exists) {
       final data = doc.data() as Map<String, dynamic>;
-      final profile = data['profiles']?[modeKey] as Map<String, dynamic>?;
-      setState(() {
-        _previewData = profile ?? {};
-        if (profile != null && profile.containsKey('style')) {
-          _selectedColorType = profile['style']['colorType'] ?? 'gradient';
-          _selectedColorId = profile['style']['colorId'] ?? 0;
-          _selectedTexture = profile['style']['texture'] ?? 'glass';
-          _colorTabController.index = _selectedColorType == 'solid' ? 0 : 1;
-        }
-      });
+      final profile = data['profiles']?[_currentModeKey] as Map<String, dynamic>?;
+      if (mounted) {
+        setState(() {
+          _previewData = profile ?? {};
+          if (profile != null && profile.containsKey('theme')) {
+             final theme = profile['theme'];
+             _selectedTemplateId = theme['templateId'] ?? 'minimal_beige';
+          }
+        });
+      }
     }
   }
 
@@ -92,16 +51,11 @@ class _CardDesignScreenState extends ConsumerState<CardDesignScreen> with Single
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     setState(() => _isLoading = true);
-    final modeKey = ['business', 'social', 'private'][widget.modeIndex];
     try {
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'profiles': {
-          modeKey: {
-            'style': {
-              'colorType': _selectedColorType,
-              'colorId': _selectedColorId,
-              'texture': _selectedTexture,
-            }
+          _currentModeKey: {
+            'theme': { 'type': 'template', 'templateId': _selectedTemplateId }
           }
         }
       }, SetOptions(merge: true));
@@ -119,45 +73,41 @@ class _CardDesignScreenState extends ConsumerState<CardDesignScreen> with Single
   @override
   Widget build(BuildContext context) {
     Map<String, dynamic> livePreviewData = Map.from(_previewData);
-    livePreviewData['style'] = {
-      'colorType': _selectedColorType,
-      'colorId': _selectedColorId,
-      'texture': _selectedTexture,
-    };
+    livePreviewData['theme'] = { 'type': 'template', 'templateId': _selectedTemplateId };
 
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text("명함 디자인"),
         backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
         actions: [
           TextButton(
             onPressed: _isLoading ? null : _saveDesign,
-            child: const Text("완료", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: _isLoading 
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              : const Text("완료", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
           )
         ],
       ),
       body: Column(
         children: [
-          // 1. 미리보기 영역
+          // 1. 상단 미리보기
           Expanded(
-            flex: 5,
+            flex: 6,
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: BumpCard(
-                  data: livePreviewData,
-                  modeIndex: widget.modeIndex,
-                  primaryColor: Colors.white,
-                ),
+                child: _buildPreviewCard(livePreviewData),
               ),
             ),
           ),
-          // 2. 컨트롤 패널
+          
+          // 2. 하단 디자인 선택
           Expanded(
             flex: 4,
             child: Container(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 30),
+              padding: const EdgeInsets.all(24),
               decoration: const BoxDecoration(
                 color: Color(0xFF1E1E1E),
                 borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
@@ -165,45 +115,23 @@ class _CardDesignScreenState extends ConsumerState<CardDesignScreen> with Single
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 색상 선택 탭
-                  TabBar(
-                    controller: _colorTabController,
-                    indicatorColor: Colors.white,
-                    labelColor: Colors.white,
-                    unselectedLabelColor: Colors.white54,
-                    tabs: const [Tab(text: "단색 (Solid)"), Tab(text: "그라데이션")],
-                  ),
+                  const Text("템플릿 선택", style: TextStyle(color: Colors.white54, fontSize: 14)),
                   const SizedBox(height: 20),
-                  // 색상 팔레트
-                  SizedBox(
-                    height: 60,
-                    child: TabBarView(
-                      controller: _colorTabController,
-                      physics: const NeverScrollableScrollPhysics(), // 스와이프 방지
+                  Expanded(
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
                       children: [
-                        // 단색 팔레트
-                        ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _solidColors.length,
-                          itemBuilder: (context, index) => _buildColorItem(index, color: _solidColors[index]),
-                        ),
-                        // 그라데이션 팔레트
-                        ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _gradientColors.length,
-                          itemBuilder: (context, index) => _buildColorItem(index, gradient: _gradientColors[index]),
-                        ),
+                        _buildDesignOption("Minimal Beige", Icons.light_mode, "minimal_beige"),
+                        const SizedBox(width: 12),
+                        _buildDesignOption("Dark Geo", Icons.hexagon, "dark_geometric"), // [신규]
+                        const SizedBox(width: 12),
+                        _buildDesignOption("Paper White", Icons.description, "paper_white"), // [신규]
+                        const SizedBox(width: 12),
+                        _buildDesignOption("Paper Kraft", Icons.recycling, "paper_kraft"), // [신규]
+                        const SizedBox(width: 12),
+                        _buildDesignOption("Paper Linen", Icons.grid_on, "paper_linen"), // [신규]
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 30),
-                  // 질감 선택
-                  const Text("Texture (질감)", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: _textureOptions.map((option) {
-                      return _buildTextureOption(option['id'], option['label'], option['icon']);
-                    }).toList(),
                   ),
                 ],
               ),
@@ -214,46 +142,39 @@ class _CardDesignScreenState extends ConsumerState<CardDesignScreen> with Single
     );
   }
 
-  // 색상 아이템 위젯
-  Widget _buildColorItem(int index, {Color? color, List<Color>? gradient}) {
-    bool isSelected = _selectedColorId == index;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedColorId = index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(right: 16),
-        width: 60, height: 60,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-          gradient: gradient != null ? LinearGradient(colors: gradient) : null,
-          border: isSelected ? Border.all(color: Colors.white, width: 3) : Border.all(color: Colors.white24, width: 1),
-          boxShadow: isSelected ? [const BoxShadow(color: Colors.black26, blurRadius: 10)] : [],
-        ),
-        child: isSelected ? const Icon(Icons.check, color: Colors.white) : null,
-      ),
-    );
+  Widget _buildPreviewCard(Map<String, dynamic> data) {
+    // 템플릿 ID에 따라 위젯 분기
+    switch (_selectedTemplateId) {
+      case 'dark_geometric':
+        return DarkGeometricCard(data: data, modeIndex: widget.modeIndex);
+      case 'paper_white':
+        return PaperTextureCard(data: data, modeIndex: widget.modeIndex, type: PaperType.white);
+      case 'paper_kraft':
+        return PaperTextureCard(data: data, modeIndex: widget.modeIndex, type: PaperType.kraft);
+      case 'paper_linen':
+        return PaperTextureCard(data: data, modeIndex: widget.modeIndex, type: PaperType.linen);
+      default:
+        return MinimalTemplateCard(data: data, modeIndex: widget.modeIndex);
+    }
   }
 
-  // 질감 선택 버튼 위젯
-  Widget _buildTextureOption(String value, String label, IconData icon) {
-    bool isSelected = _selectedTexture == value;
+  Widget _buildDesignOption(String label, IconData icon, String id) {
+    bool isSelected = _selectedTemplateId == id;
     return GestureDetector(
-      onTap: () => setState(() => _selectedTexture = value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      onTap: () => setState(() => _selectedTemplateId = id),
+      child: Container(
+        width: 100,
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.white.withOpacity(0.05),
+          color: isSelected ? Colors.white : Colors.white10,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isSelected ? Colors.white : Colors.transparent, width: 1.5),
+          border: Border.all(color: isSelected ? Colors.blueAccent : Colors.transparent, width: 2),
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 24, color: isSelected ? Colors.black : Colors.white54),
+            Icon(icon, size: 28, color: isSelected ? Colors.black : Colors.white54),
             const SizedBox(height: 8),
-            Text(label, style: TextStyle(color: isSelected ? Colors.black : Colors.white54, fontWeight: FontWeight.w600, fontSize: 12)),
+            Text(label, style: TextStyle(color: isSelected ? Colors.black : Colors.white70, fontSize: 12, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
           ],
         ),
       ),
