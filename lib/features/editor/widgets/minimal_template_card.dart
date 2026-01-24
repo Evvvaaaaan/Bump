@@ -15,254 +15,150 @@ class MinimalTemplateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = _getValue('name');
-    String? subtitle;
-    String? logoUrl; // [NEW] 회사 로고
-    List<Map<String, dynamic>> contactItems = [];
+    // 1. 데이터 평탄화
+    final Map<String, dynamic> safeData = _flattenData(data);
 
-    // =========================================================
-    // [1] Business Mode (업무)
-    // =========================================================
-    if (modeIndex == 0) {
-      subtitle = _getValue('role'); 
-      logoUrl = _getValue('logoUrl'); // [NEW] 로고 데이터
-      
-      final company = _getValue('company');
-      final phone = _getValue('phone');
-      final email = _getValue('email');
-      final website = _getValue('website');
-
-      if (phone != null) contactItems.add({'icon': Icons.phone, 'label': 'TEL', 'value': phone, 'url': "tel:$phone"});
-      if (email != null) contactItems.add({'icon': Icons.mail_outline, 'label': 'MAIL', 'value': email, 'url': "mailto:$email"});
-      if (website != null) contactItems.add({'icon': Icons.language, 'label': 'WEB', 'value': _shortenUrl(website), 'url': website});
-      if (company != null) contactItems.add({'icon': Icons.business, 'label': 'OFFICE', 'value': company, 'url': null});
-    } 
-    // =========================================================
-    // [2] Social Mode (사교)
-    // =========================================================
-    else if (modeIndex == 1) {
-      // [수정] TMI 삭제 -> MBTI를 부제목으로 고정
-      subtitle = _getValue('mbti');
-      
-      final instagram = _getValue('instagram');
-      final kakao = _getValue('kakaoId');
-      final birth = _getValue('birthdate'); // YYYY-MM-DD
-
-      if (instagram != null) contactItems.add({'icon': FontAwesomeIcons.instagram, 'label': 'INSTAGRAM', 'value': "@$instagram", 'url': "https://instagram.com/$instagram"});
-      
-      // [수정됨] 카카오톡 URL 설정 로직 추가
-      if (kakao != null) {
-        contactItems.add({
-          'icon': FontAwesomeIcons.solidComment,
-          'label': 'KAKAO',
-          'value': kakao,
-          // http로 시작하면(오픈프로필 등) 링크 이동, 아니면(ID) 앱 실행 시도
-          'url': kakao.startsWith('http') ? kakao : "kakaotalk://"
-        });
-      }
-      
-      // [수정] 생일 포맷이 YYYY-MM-DD로 들어오므로 그대로 표시하거나 가공
-      if (birth != null) contactItems.add({'icon': Icons.cake_outlined, 'label': 'BDAY', 'value': birth, 'url': null});
+    final name = _getString(safeData, 'name') ?? 'NAME';
+    
+    // 2. 스마트 자막
+    String? subtitle = _getString(safeData, 'role');
+    if (subtitle == null && _getString(safeData, 'mbti') != null) {
+      subtitle = _getString(safeData, 'mbti')?.toUpperCase();
     }
-    // =========================================================
-    // [3] Private Mode (개인)
-    // =========================================================
-    else {
-      subtitle = "PRIVATE CARD";
-      
-      final phone = _getValue('phone');
-      final address = _getValue('address');
-      final email = _getValue('email');
-      // [수정] Discord 삭제됨
+    subtitle ??= "CONTACT";
 
-      if (phone != null) contactItems.add({'icon': Icons.phone, 'label': 'MOBILE', 'value': phone, 'url': "tel:$phone"});
-      if (address != null) contactItems.add({'icon': Icons.home, 'label': 'HOME', 'value': address, 'url': null});
-      if (email != null) contactItems.add({'icon': Icons.email, 'label': 'EMAIL', 'value': email, 'url': "mailto:$email"});
-    }
-
-    bool isSparse = contactItems.length <= 2;
+    String? logoUrl = _getString(safeData, 'logoUrl');
+    
+    // 3. 스마트 리스트
+    List<Map<String, dynamic>> contactItems = _getSmartContactItems(safeData);
 
     return Container(
       width: double.infinity,
-      height: 200,
+      constraints: const BoxConstraints(minHeight: 220),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFFEBE6D8),
+        color: const Color(0xFFF5F5F0), // 베이지색 배경
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black, width: 2),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
       ),
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // 배경 장식
-          Positioned.fill(
-            child: Container(
-              margin: const EdgeInsets.all(6),
-              decoration: BoxDecoration(border: Border.all(color: Colors.black54, width: 0.5)),
-            ),
-          ),
-          
-          // [NEW] 회사 로고 표시 (Business 모드일 때만)
-          if (logoUrl != null && modeIndex == 0)
-            Positioned(
-              top: 20,
-              right: 24,
-              child: Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.rectangle,
-                  image: DecorationImage(image: NetworkImage(logoUrl), fit: BoxFit.cover),
-                  border: Border.all(color: Colors.black12), borderRadius: BorderRadius.circular(5),
-                ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: GoogleFonts.notoSans(fontSize: 24, fontWeight: FontWeight.bold, color: const Color(0xFF2D2D2D))),
+                  const SizedBox(height: 4),
+                  Text(subtitle, style: GoogleFonts.notoSans(fontSize: 14, color: const Color(0xFF888888), fontWeight: FontWeight.w500)),
+                ],
               ),
-            ),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-            child: isSparse
-                ? _buildCenteredLayout(name, subtitle, contactItems)
-                : _buildFullLayout(name, subtitle, contactItems),
+              if (logoUrl != null)
+                Container(
+                  width: 50, height: 50,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    image: DecorationImage(image: NetworkImage(logoUrl), fit: BoxFit.cover),
+                  ),
+                )
+              else
+                Icon(
+                  (safeData['instagram'] != null || safeData['mbti'] != null) ? Icons.sentiment_satisfied : Icons.circle, 
+                  size: 40, 
+                  color: Colors.grey[300]
+                ),
+            ],
           ),
+          const SizedBox(height: 24),
+          const Divider(color: Color(0xFFE0E0E0), thickness: 1),
+          const SizedBox(height: 16),
+          ...contactItems.map((item) => _buildContactRow(item)).toList(),
         ],
       ),
     );
   }
 
-  // [레이아웃 A] 중앙 정렬
-  Widget _buildCenteredLayout(String? name, String? subtitle, List<Map<String, dynamic>> items) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (name != null)
-          Text(
-            name.toUpperCase(),
-            style: GoogleFonts.playfairDisplay(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black, letterSpacing: 1.5),
-            textAlign: TextAlign.center,
-          ),
-        if (subtitle != null) ...[
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(border: Border.all(color: Colors.black), borderRadius: BorderRadius.circular(20)),
-            child: Text(
-              subtitle.toUpperCase(),
-              style: GoogleFonts.lato(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0),
-            ),
-          ),
-        ],
-        const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: items.map((item) => _buildLargeIconBtn(item)).toList(),
-        ),
-      ],
-    );
+  // [스마트 데이터 추출 로직] (다른 카드와 동일한 로직)
+  List<Map<String, dynamic>> _getSmartContactItems(Map<String, dynamic> d) {
+    List<Map<String, dynamic>> items = [];
+
+    final phone = _getString(d, 'phone');
+    final email = _getString(d, 'email');
+    final website = _getString(d, 'website');
+    final company = _getString(d, 'company');
+    final instagram = _getString(d, 'instagram');
+    final kakao = _getString(d, 'kakaoId') ?? _getString(d, 'kakao');
+    final birthdate = _getString(d, 'birthdate');
+    final address = _getString(d, 'address');
+
+    // Business
+    if (modeIndex == 0) {
+      if (company != null) items.add({'icon': Icons.business, 'value': company, 'url': null});
+      if (phone != null) items.add({'icon': Icons.phone, 'value': phone, 'url': "tel:$phone"});
+      if (email != null) items.add({'icon': Icons.email_outlined, 'value': email, 'url': "mailto:$email"});
+      if (website != null) items.add({'icon': Icons.language, 'value': _shortenUrl(website), 'url': website});
+      if (items.isEmpty) { // Fallback
+         if (instagram != null) items.add({'icon': FontAwesomeIcons.instagram, 'value': "@$instagram", 'url': "https://instagram.com/$instagram"});
+         if (kakao != null) items.add({'icon': FontAwesomeIcons.solidComment, 'value': kakao, 'url': "kakaotalk://"});
+      }
+    } 
+    // Social
+    else if (modeIndex == 1) {
+      if (instagram != null) items.add({'icon': FontAwesomeIcons.instagram, 'value': "@$instagram", 'url': "https://instagram.com/$instagram"});
+      if (kakao != null) items.add({'icon': FontAwesomeIcons.solidComment, 'value': kakao, 'url': "kakaotalk://"});
+      if (birthdate != null) items.add({'icon': Icons.cake, 'value': birthdate, 'url': null});
+      if (items.isEmpty && phone != null) items.add({'icon': Icons.phone, 'value': phone, 'url': "tel:$phone"});
+    } 
+    // Private
+    else {
+      if (phone != null) items.add({'icon': Icons.phone, 'value': phone, 'url': "tel:$phone"});
+      if (address != null) items.add({'icon': Icons.home, 'value': address, 'url': null});
+      if (items.isEmpty && email != null) items.add({'icon': Icons.email, 'value': email, 'url': "mailto:$email"});
+    }
+
+    if (items.isEmpty) {
+      if (phone != null) items.add({'icon': Icons.phone, 'value': phone, 'url': "tel:$phone"});
+      if (instagram != null) items.add({'icon': FontAwesomeIcons.instagram, 'value': "@$instagram", 'url': "https://instagram.com/$instagram"});
+    }
+    
+    return items;
   }
 
-  // [레이아웃 B] 좌측 정렬 (제공해주신 코드 레이아웃 유지)
-  Widget _buildFullLayout(String? name, String? subtitle, List<Map<String, dynamic>> items) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Spacer(flex: 2),
-        if (name != null)
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              name.toUpperCase(),
-              style: GoogleFonts.playfairDisplay(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black, letterSpacing: 1.2),
-            ),
-          ),
-        if (subtitle != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            subtitle.toUpperCase(),
-            style: GoogleFonts.lato(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87, letterSpacing: 0.5),
-          ),
-        ],
-        const Spacer(flex: 3),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Row(
-              children: items.map((item) => Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: _buildSmallIcon(item),
-              )).toList(),
-            ),
-            const Spacer(),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: items.map((item) => _buildContactRow(item['label'], item['value'])).toList(),
-            ),
-          ],
-        ),
-        const SizedBox(height: 5),
-      ],
-    );
-  }
-
-  // Helper Widgets
-  Widget _buildLargeIconBtn(Map<String, dynamic> item) {
+  Widget _buildContactRow(Map<String, dynamic> item) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.only(bottom: 8.0),
       child: GestureDetector(
         onTap: () => item['url'] != null ? _launch(item['url']) : null,
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.05)),
-          child: Icon(item['icon'], size: 28, color: Colors.black),
+        child: Row(
+          children: [
+            Icon(item['icon'], size: 16, color: const Color(0xFF888888)),
+            const SizedBox(width: 12),
+            Expanded(child: Text(item['value'], style: GoogleFonts.notoSans(fontSize: 14, color: const Color(0xFF2D2D2D)), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSmallIcon(Map<String, dynamic> item) {
-    return GestureDetector(
-      onTap: () => item['url'] != null ? _launch(item['url']) : null,
-      child: Icon(item['icon'], size: 24, color: Colors.black),
-    );
-  }
-
-  Widget _buildContactRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4.0),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text("$label ", style: GoogleFonts.lato(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.black54), textAlign: TextAlign.left,),
-          Container(
-            constraints: const BoxConstraints(maxWidth: 120),
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: GoogleFonts.lato(fontSize: 10, color: Colors.black, fontWeight: FontWeight.w500),
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // [수정됨] URL 실행 로직 (카카오톡 스킴 및 외부 앱 실행 지원)
-  Future<void> _launch(String url) async {
-    final uri = Uri.parse(
-      (url.startsWith('http') || url.startsWith('tel') || url.startsWith('mailto') || url.startsWith('kakaotalk')) 
-      ? url 
-      : 'https://$url'
-    );
-    
-    // 외부 앱 실행 모드 사용 (카카오톡 앱 열기 위해 필수)
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+  Map<String, dynamic> _flattenData(Map<String, dynamic> source) {
+    Map<String, dynamic> result = Map.from(source);
+    if (source['profile'] != null && source['profile'] is Map) {
+      result.addAll(Map<String, dynamic>.from(source['profile']));
     }
+    return result;
   }
 
-  String? _getValue(String key) {
-    final val = data[key]?.toString();
-    return (val == null || val.trim().isEmpty) ? null : val;
+  String? _getString(Map<String, dynamic> d, String key) {
+    final val = d[key];
+    if (val == null || val.toString().trim().isEmpty) return null;
+    return val.toString();
   }
-  
-  String _shortenUrl(String url) {
-    return url.replaceFirst('https://', '').replaceFirst('http://', '').replaceFirst('www.', '');
+  String _shortenUrl(String url) => url.replaceFirst(RegExp(r'https?://(www\.)?'), '');
+  Future<void> _launch(String url) async {
+    final uri = Uri.parse(url.startsWith('http') || url.startsWith('tel') || url.startsWith('mailto') || url.startsWith('kakaotalk') ? url : 'https://$url');
+    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }

@@ -19,7 +19,7 @@ class PaperTextureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // [핵심] 데이터 평탄화
+    // 1. 데이터 평탄화 (숨어있는 데이터 꺼내기)
     final Map<String, dynamic> safeData = _flattenData(data);
 
     // 배경 설정
@@ -41,13 +41,16 @@ class PaperTextureCard extends StatelessWidget {
 
     final name = _getString(safeData, 'name') ?? '이름 없음';
     
-    String? subtitle;
-    if (modeIndex == 0) subtitle = _getString(safeData, 'role');
-    else if (modeIndex == 1) subtitle = _getString(safeData, 'mbti');
-    else subtitle = "PRIVATE";
+    // 2. 스마트 자막 (직함 없으면 MBTI 표시)
+    String? subtitle = _getString(safeData, 'role');
+    if (subtitle == null && _getString(safeData, 'mbti') != null) {
+      subtitle = _getString(safeData, 'mbti')?.toUpperCase();
+    }
 
     String? logoUrl = _getString(safeData, 'logoUrl');
-    List<Map<String, dynamic>> contactItems = _getContactItems(safeData);
+    
+    // 3. 스마트 리스트 (있는 데이터 우선 표시)
+    List<Map<String, dynamic>> contactItems = _getSmartContactItems(safeData);
 
     return Container(
       width: double.infinity,
@@ -80,7 +83,10 @@ class PaperTextureCard extends StatelessWidget {
                       const SizedBox(height: 12),
                       Container(width: 40, height: 1.5, color: accentColor),
                       const SizedBox(height: 16),
-                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: contactItems.map((item) => _buildContactRow(item, textColor)).toList()),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start, 
+                        children: contactItems.map((item) => _buildContactRow(item, textColor)).toList()
+                      ),
                     ],
                   ),
                 ),
@@ -96,7 +102,12 @@ class PaperTextureCard extends StatelessWidget {
                           child: Container(width: 50, height: 50, decoration: BoxDecoration(image: DecorationImage(image: NetworkImage(logoUrl), fit: BoxFit.contain))),
                         )
                       else
-                        Icon(modeIndex == 1 ? Icons.local_florist : Icons.spa, size: 40, color: accentColor),
+                        // 데이터 종류에 따라 아이콘 변경
+                        Icon(
+                          (safeData['instagram'] != null || safeData['mbti'] != null) ? Icons.local_florist : Icons.spa, 
+                          size: 40, 
+                          color: accentColor
+                        ),
                     ],
                   ),
                 ),
@@ -108,27 +119,54 @@ class PaperTextureCard extends StatelessWidget {
     );
   }
 
-  List<Map<String, dynamic>> _getContactItems(Map<String, dynamic> d) {
+  // [스마트 데이터 추출]
+  List<Map<String, dynamic>> _getSmartContactItems(Map<String, dynamic> d) {
     List<Map<String, dynamic>> items = [];
-    if (modeIndex == 0) { 
-      final phone = _getString(d, 'phone');
-      final email = _getString(d, 'email');
-      final website = _getString(d, 'website');
+
+    final phone = _getString(d, 'phone');
+    final email = _getString(d, 'email');
+    final website = _getString(d, 'website');
+    final company = _getString(d, 'company');
+    final instagram = _getString(d, 'instagram');
+    final kakao = _getString(d, 'kakaoId') ?? _getString(d, 'kakao');
+    final birthdate = _getString(d, 'birthdate');
+    final address = _getString(d, 'address');
+
+    // Business 모드 우선
+    if (modeIndex == 0) {
+      if (company != null) items.add({'icon': Icons.business, 'value': company, 'url': null});
       if (phone != null) items.add({'icon': Icons.phone, 'value': phone, 'url': "tel:$phone"});
       if (email != null) items.add({'icon': Icons.mail_outline, 'value': email, 'url': "mailto:$email"});
       if (website != null) items.add({'icon': Icons.language, 'value': _shortenUrl(website), 'url': website});
-    } else if (modeIndex == 1) { 
-      final instagram = _getString(d, 'instagram');
-      final kakao = _getString(d, 'kakaoId') ?? _getString(d, 'kakao');
-      final birthdate = _getString(d, 'birthdate');
       
+      // 비즈니스 정보 없으면 소셜 정보 표시
+      if (items.isEmpty) {
+        if (instagram != null) items.add({'icon': FontAwesomeIcons.instagram, 'value': "@$instagram", 'url': "https://instagram.com/$instagram"});
+        if (kakao != null) items.add({'icon': FontAwesomeIcons.solidComment, 'value': kakao, 'url': "kakaotalk://"});
+      }
+    } 
+    // Social 모드 우선
+    else if (modeIndex == 1) {
       if (instagram != null) items.add({'icon': FontAwesomeIcons.instagram, 'value': "@$instagram", 'url': "https://instagram.com/$instagram"});
       if (kakao != null) items.add({'icon': FontAwesomeIcons.solidComment, 'value': kakao, 'url': "kakaotalk://"});
       if (birthdate != null) items.add({'icon': Icons.cake, 'value': birthdate, 'url': null});
-    } else { 
-      final phone = _getString(d, 'phone');
+      
+      // 소셜 정보 없으면 전화번호 표시
+      if (items.isEmpty && phone != null) items.add({'icon': Icons.phone, 'value': phone, 'url': "tel:$phone"});
+    } 
+    // Private 모드
+    else {
       if (phone != null) items.add({'icon': Icons.phone, 'value': phone, 'url': "tel:$phone"});
+      if (address != null) items.add({'icon': Icons.home, 'value': address, 'url': null});
+      if (items.isEmpty && email != null) items.add({'icon': Icons.mail_outline, 'value': email, 'url': "mailto:$email"});
     }
+
+    // 최후의 보루: 비어있으면 뭐라도 표시
+    if (items.isEmpty) {
+      if (phone != null) items.add({'icon': Icons.phone, 'value': phone, 'url': "tel:$phone"});
+      if (instagram != null) items.add({'icon': FontAwesomeIcons.instagram, 'value': "@$instagram", 'url': "https://instagram.com/$instagram"});
+    }
+
     return items;
   }
 
