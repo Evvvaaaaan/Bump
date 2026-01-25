@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
+import 'package:bump/features/common/scale_button.dart';
 
 // [핵심 수정] 개별 디자인 위젯 대신 통합 렌더러 임포트
 import 'package:bump/features/common/card_renderer.dart'; 
@@ -138,7 +139,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         separatorBuilder: (_, __) => const SizedBox(width: 20),
         itemBuilder: (context, index) {
           final isSelected = index == currentIndex;
-          return GestureDetector(
+          return ScaleButton(
             onTap: () => ref.read(modeProvider.notifier).state = index,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,

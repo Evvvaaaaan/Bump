@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:bump/features/common/skeleton_loader.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
@@ -87,7 +88,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               stream: dbService.getConnectionsStream(uid), 
               builder: (context, snapshot) {
                 if (snapshot.hasError) return Center(child: Text("오류: ${snapshot.error}", style: const TextStyle(color: Colors.white54)));
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: Colors.white));
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SkeletonContactList(); 
+                }
 
                 final allContacts = snapshot.data ?? [];
 
@@ -205,7 +208,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           } else if (index == 2) {
             context.push('/bump'); // Bump 화면 이동
           } else if (index == 3) {
-            // Settings 이동 (필요 시 구현)
+            context.push('/settings');
           }
         },
         items: const [

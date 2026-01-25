@@ -113,8 +113,11 @@ import 'package:bump/features/bump/bump_screen.dart';
 import 'package:bump/features/card/card_detail_screen.dart';
 import 'package:bump/features/editor/card_editor_screen.dart';
 import 'package:bump/features/history/history_screen.dart';
+import 'package:bump/features/onboarding/unified_permission_screen.dart';
 import 'package:bump/features/profile/profile_setup_screen.dart';
 import 'package:bump/features/home/home_screen.dart';
+import 'package:bump/features/settings/privacy_screen.dart';
+import 'package:bump/features/settings/terms_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -150,6 +153,10 @@ final _router = GoRouter(
       builder: (context, state) => const LoginScreen(),
     ),
     GoRoute(
+      path: '/permissions',
+      builder: (context, state) => const UnifiedPermissionScreen(),
+    ),
+    GoRoute(
       path: '/',
       builder: (context, state) => const HomeScreen(),
     ),
@@ -179,6 +186,14 @@ final _router = GoRouter(
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/terms',
+      builder: (context, state) => const TermsScreen(),
+    ),
+    GoRoute(
+      path: '/privacy',
+      builder: (context, state) => const PrivacyScreen(),
     ),
   ],
   redirect: (context, state) {

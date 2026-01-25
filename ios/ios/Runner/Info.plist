@@ -4,6 +4,12 @@
 <dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>주변 사용자를 찾기 위해 위치 권한이 필요합니다.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>주변 사용자를 찾기 위해 위치 권한이 필요합니다.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>주변 사용자를 찾기 위해 위치 권한이 필요합니다.</string>
+	<key>NSPermissionGroupNotification</key>
+	<string>알림 권한이 필요합니다.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
