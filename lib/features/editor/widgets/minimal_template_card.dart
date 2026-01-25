@@ -8,120 +8,125 @@ class MinimalTemplateCard extends StatelessWidget {
   final int modeIndex;
 
   const MinimalTemplateCard({
-    super.key, 
+    super.key,
     required this.data,
-    required this.modeIndex, 
+    required this.modeIndex,
   });
 
   @override
   Widget build(BuildContext context) {
-    // 1. 데이터 평탄화
-    final Map<String, dynamic> safeData = _flattenData(data);
-
+    final safeData = _flattenData(data);
+    
+    // 1. 헤더 정보 추출 (이름, 직함, 회사, MBTI, 로고)
     final name = _getString(safeData, 'name') ?? 'NAME';
+    final logoUrl = _getString(safeData, 'logoUrl');
     
-    // 2. 스마트 자막
-    String? subtitle = _getString(safeData, 'role');
-    if (subtitle == null && _getString(safeData, 'mbti') != null) {
-      subtitle = _getString(safeData, 'mbti')?.toUpperCase();
+    // 서브텍스트 구성
+    String? subtitle; // 직함 or MBTI
+    String? thirdLine; // 회사명 (Business 전용)
+
+    if (modeIndex == 0) { // Business
+      subtitle = _getString(safeData, 'role'); // 직함
+      thirdLine = _getString(safeData, 'company'); // 회사명
+    } else if (modeIndex == 1) { // Social
+      subtitle = _getString(safeData, 'mbti')?.toUpperCase(); // MBTI
+    } else { // Private
+      subtitle = "Private Contact";
     }
-    subtitle ??= "CONTACT";
 
-    String? logoUrl = _getString(safeData, 'logoUrl');
-    
-    // 3. 스마트 리스트
-    List<Map<String, dynamic>> contactItems = _getSmartContactItems(safeData);
+    // 2. 리스트 정보 추출 (모든 필드 포함)
+    final contactItems = _getSmartContactItems(safeData);
 
-    return Container(
-      width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 220),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F0), // 베이지색 배경
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name, style: GoogleFonts.notoSans(fontSize: 24, fontWeight: FontWeight.bold, color: const Color(0xFF2D2D2D))),
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: GoogleFonts.notoSans(fontSize: 14, color: const Color(0xFF888888), fontWeight: FontWeight.w500)),
-                ],
-              ),
-              if (logoUrl != null)
-                Container(
-                  width: 50, height: 50,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    image: DecorationImage(image: NetworkImage(logoUrl), fit: BoxFit.cover),
+    return AspectRatio(
+      aspectRatio: 1.586,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F5F0),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // [헤더 영역] 이름, 직함, 회사명, 로고
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: GoogleFonts.notoSans(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 4),
+                        Text(subtitle, style: GoogleFonts.notoSans(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.blueAccent)),
+                      ],
+                      if (thirdLine != null) ...[ // 회사명 표시
+                        const SizedBox(height: 2),
+                        Text(thirdLine, style: GoogleFonts.notoSans(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black54)),
+                      ],
+                    ],
                   ),
-                )
-              else
-                Icon(
-                  (safeData['instagram'] != null || safeData['mbti'] != null) ? Icons.sentiment_satisfied : Icons.circle, 
-                  size: 40, 
-                  color: Colors.grey[300]
                 ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const Divider(color: Color(0xFFE0E0E0), thickness: 1),
-          const SizedBox(height: 16),
-          ...contactItems.map((item) => _buildContactRow(item)).toList(),
-        ],
+                if (logoUrl != null)
+                  CircleAvatar(radius: 22, backgroundImage: NetworkImage(logoUrl), backgroundColor: Colors.transparent)
+                else if (modeIndex == 0) // 로고 없으면 비즈니스 아이콘
+                  const Icon(Icons.business, size: 40, color: Colors.black12),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            const Divider(height: 1, thickness: 1, color: Colors.black12),
+            const SizedBox(height: 16),
+
+            // [리스트 영역] 스크롤 적용 + 모든 정보 표시
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  children: contactItems.isNotEmpty 
+                    ? contactItems.map((item) => _buildContactRow(item)).toList()
+                    : [const Text("표시할 정보가 없습니다.", style: TextStyle(color: Colors.black38, fontSize: 12))],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // [스마트 데이터 추출 로직] (다른 카드와 동일한 로직)
+  // [데이터 추출 로직 수정] 요청하신 모든 필드를 포함
   List<Map<String, dynamic>> _getSmartContactItems(Map<String, dynamic> d) {
     List<Map<String, dynamic>> items = [];
-
+    
+    // 데이터 가져오기
     final phone = _getString(d, 'phone');
     final email = _getString(d, 'email');
     final website = _getString(d, 'website');
-    final company = _getString(d, 'company');
+    final address = _getString(d, 'address');
     final instagram = _getString(d, 'instagram');
     final kakao = _getString(d, 'kakaoId') ?? _getString(d, 'kakao');
     final birthdate = _getString(d, 'birthdate');
-    final address = _getString(d, 'address');
 
-    // Business
-    if (modeIndex == 0) {
-      if (company != null) items.add({'icon': Icons.business, 'value': company, 'url': null});
+    if (modeIndex == 0) { // Business: 업무전화, 업무이메일, 웹사이트
       if (phone != null) items.add({'icon': Icons.phone, 'value': phone, 'url': "tel:$phone"});
       if (email != null) items.add({'icon': Icons.email_outlined, 'value': email, 'url': "mailto:$email"});
       if (website != null) items.add({'icon': Icons.language, 'value': _shortenUrl(website), 'url': website});
-      if (items.isEmpty) { // Fallback
-         if (instagram != null) items.add({'icon': FontAwesomeIcons.instagram, 'value': "@$instagram", 'url': "https://instagram.com/$instagram"});
-         if (kakao != null) items.add({'icon': FontAwesomeIcons.solidComment, 'value': kakao, 'url': "kakaotalk://"});
-      }
-    } 
-    // Social
-    else if (modeIndex == 1) {
+    
+    } else if (modeIndex == 1) { // Social: 생일, 인스타, 카카오
+      if (birthdate != null) items.add({'icon': Icons.cake_outlined, 'value': birthdate, 'url': null});
       if (instagram != null) items.add({'icon': FontAwesomeIcons.instagram, 'value': "@$instagram", 'url': "https://instagram.com/$instagram"});
       if (kakao != null) items.add({'icon': FontAwesomeIcons.solidComment, 'value': kakao, 'url': "kakaotalk://"});
-      if (birthdate != null) items.add({'icon': Icons.cake, 'value': birthdate, 'url': null});
-      if (items.isEmpty && phone != null) items.add({'icon': Icons.phone, 'value': phone, 'url': "tel:$phone"});
-    } 
-    // Private
-    else {
-      if (phone != null) items.add({'icon': Icons.phone, 'value': phone, 'url': "tel:$phone"});
-      if (address != null) items.add({'icon': Icons.home, 'value': address, 'url': null});
-      if (items.isEmpty && email != null) items.add({'icon': Icons.email, 'value': email, 'url': "mailto:$email"});
-    }
-
-    if (items.isEmpty) {
-      if (phone != null) items.add({'icon': Icons.phone, 'value': phone, 'url': "tel:$phone"});
-      if (instagram != null) items.add({'icon': FontAwesomeIcons.instagram, 'value': "@$instagram", 'url': "https://instagram.com/$instagram"});
+    
+    } else { // Private: 개인전화, 개인이메일, 집주소
+      if (phone != null) items.add({'icon': Icons.phone_iphone, 'value': phone, 'url': "tel:$phone"});
+      if (email != null) items.add({'icon': Icons.email_outlined, 'value': email, 'url': "mailto:$email"});
+      if (address != null) items.add({'icon': Icons.home_outlined, 'value': address, 'url': null});
     }
     
     return items;
@@ -129,14 +134,21 @@ class MinimalTemplateCard extends StatelessWidget {
 
   Widget _buildContactRow(Map<String, dynamic> item) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.only(bottom: 10.0),
       child: GestureDetector(
         onTap: () => item['url'] != null ? _launch(item['url']) : null,
         child: Row(
           children: [
-            Icon(item['icon'], size: 16, color: const Color(0xFF888888)),
+            Icon(item['icon'], size: 16, color: Colors.black54),
             const SizedBox(width: 12),
-            Expanded(child: Text(item['value'], style: GoogleFonts.notoSans(fontSize: 14, color: const Color(0xFF2D2D2D)), maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Expanded(
+              child: Text(
+                item['value'], 
+                style: GoogleFonts.notoSans(fontSize: 13, color: Colors.black87), 
+                maxLines: 1, 
+                overflow: TextOverflow.ellipsis 
+              )
+            ),
           ],
         ),
       ),
@@ -150,15 +162,7 @@ class MinimalTemplateCard extends StatelessWidget {
     }
     return result;
   }
-
-  String? _getString(Map<String, dynamic> d, String key) {
-    final val = d[key];
-    if (val == null || val.toString().trim().isEmpty) return null;
-    return val.toString();
-  }
+  String? _getString(Map<String, dynamic> d, String key) { final val = d[key]; if (val == null || val.toString().trim().isEmpty) return null; return val.toString(); }
   String _shortenUrl(String url) => url.replaceFirst(RegExp(r'https?://(www\.)?'), '');
-  Future<void> _launch(String url) async {
-    final uri = Uri.parse(url.startsWith('http') || url.startsWith('tel') || url.startsWith('mailto') || url.startsWith('kakaotalk') ? url : 'https://$url');
-    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
+  Future<void> _launch(String url) async { final uri = Uri.parse(url.startsWith('http') || url.startsWith('tel') || url.startsWith('mailto') || url.startsWith('kakaotalk') ? url : 'https://$url'); if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication); }
 }

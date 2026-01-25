@@ -1,7 +1,7 @@
 import 'package:bump/core/services/shake_detector.dart';
 import 'package:bump/features/bump/bump_screen.dart';
 import 'package:bump/features/editor/card_editor_screen.dart'; 
-import 'package:bump/features/design/card_design_screen.dart'; 
+import 'package:bump/features/design/card_design_screen.dart'; // (경로 확인 필요: features/editor/screens/card_design_screen.dart 일 수도 있음)
 import 'package:bump/core/services/database_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,11 +9,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
 
-// [필수] 모든 카드 디자인 위젯 임포트
-import 'package:bump/features/editor/widgets/minimal_template_card.dart'; 
-import 'package:bump/features/editor/widgets/dark_geometric_card.dart'; 
-import 'package:bump/features/editor/widgets/paper_texture_card.dart';
+// [핵심 수정] 개별 디자인 위젯 대신 통합 렌더러 임포트
+import 'package:bump/features/common/card_renderer.dart'; 
 
 // [상태 관리] 현재 선택된 모드 (0: Business, 1: Social, 2: Private)
 final modeProvider = StateProvider<int>((ref) => 0);
@@ -45,7 +44,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _handleHomeShake() async {
     if (ModalRoute.of(context)?.isCurrent != true) return;
     if (_isNavigating) return;
-
+    await HapticFeedback.heavyImpact();
     setState(() => _isNavigating = true);
     _shakeDetector?.stopListening();
 
@@ -109,6 +108,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         onTap: (index) {
           if (index == 1) context.push('/history'); 
           if (index == 2) _handleHomeShake();       
+          if (index == 3) context.push('/settings');
         },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 28), label: 'Home'),
@@ -174,38 +174,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.white24));
 
         final userData = snapshot.data!.data() as Map<String, dynamic>?;
+        // 프로필 데이터 가져오기 (없으면 빈 맵)
         final profile = userData?['profiles']?[modeKey] as Map<String, dynamic>? ?? {};
         
-        // [핵심 로직] templateId에 따라 다른 위젯 보여주기
-        final theme = profile['theme'] as Map<String, dynamic>? ?? {};
-        final templateId = theme['templateId'] ?? 'minimal_beige'; // 기본값
-
-        Widget cardWidget;
-        
-        switch (templateId) {
-          case 'dark_geometric':
-            cardWidget = DarkGeometricCard(data: profile, modeIndex: modeIndex);
-            break;
-          case 'paper_white':
-            cardWidget = PaperTextureCard(data: profile, modeIndex: modeIndex, type: PaperType.white);
-            break;
-          case 'paper_kraft':
-            cardWidget = PaperTextureCard(data: profile, modeIndex: modeIndex, type: PaperType.kraft);
-            break;
-          case 'paper_linen':
-            cardWidget = PaperTextureCard(data: profile, modeIndex: modeIndex, type: PaperType.linen);
-            break;
-          case 'minimal_beige':
-          default:
-            cardWidget = MinimalTemplateCard(data: profile, modeIndex: modeIndex);
-            break;
-        }
+        // [핵심 로직 수정] 
+        // 1. 기존의 긴 switch 문을 제거했습니다.
+        // 2. CardRenderer에 전달하기 위해 modeIndex 정보를 데이터에 포함시킵니다.
+        final renderData = Map<String, dynamic>.from(profile);
+        renderData['modeIndex'] = modeIndex;
 
         return Column(
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: cardWidget, // 결정된 카드 위젯 렌더링
+              // [중요] CardRenderer가 templateId를 자동으로 확인하고
+              // Glass, Aurora, Neo Brutalism 등 모든 디자인을 알아서 그려줍니다.
+              child: CardRenderer(
+                data: renderData,
+                modeIndex: modeIndex,
+              ),
             ),
             
             const SizedBox(height: 24),
@@ -224,6 +211,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   context, 
                   icon: Icons.palette_outlined, 
                   label: "디자인 변경",
+                  // CardDesignScreen 경로가 맞는지 확인 필요 (features/editor/screens/card_design_screen.dart 라면 임포트 수정)
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CardDesignScreen(modeIndex: modeIndex))),
                 ),
               ],

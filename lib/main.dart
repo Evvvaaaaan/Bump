@@ -122,6 +122,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:quick_actions/quick_actions.dart';
+import 'package:bump/features/settings/settings_screen.dart';
+import 'package:flutter/services.dart';
 
 import 'firebase_options.dart';
 
@@ -131,6 +133,10 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
 
   runApp(const ProviderScope(child: BumpApp()));
 }
@@ -169,6 +175,10 @@ final _router = GoRouter(
         final data = state.extra as Map<String, dynamic>? ?? {};
         return CardDetailScreen(cardData: data);
       },
+    ),
+    GoRoute(
+      path: '/settings',
+      builder: (context, state) => const SettingsScreen(),
     ),
   ],
   redirect: (context, state) {
