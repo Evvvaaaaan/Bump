@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart'; 
 
 class CardEditorScreen extends ConsumerStatefulWidget {
@@ -169,8 +170,40 @@ class _CardEditorScreenState extends ConsumerState<CardEditorScreen> {
     );
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("저장되었습니다!")));
-      context.pop();
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+                // 2. 예쁜 플로팅 스낵바 띄우기
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        // 성공 아이콘 (파란색)
+                        const Icon(Icons.check_circle, color: Color(0xFF4B6EFF), size: 20),
+                        const SizedBox(width: 12),
+                        // 텍스트
+                        Text(
+                          "정보 수정 완료!",
+                          style: GoogleFonts.notoSans(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: const Color(0xFF333333), // 진한 회색 배경
+                    behavior: SnackBarBehavior.floating,      // [핵심] 화면 위에 둥둥 뜨게 만듦
+                    margin: const EdgeInsets.fromLTRB(20, 0, 20, 40), // [핵심] 하단에서 40px 띄움
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8), // 모서리 둥글게
+                    ),
+                    duration: const Duration(seconds: 2), // 2초 뒤 사라짐
+                    elevation: 4, // 그림자 효과
+                  ),
+                );
+
+                // 3. 화면 닫기
+                Navigator.pop(context);
     }
   }
 

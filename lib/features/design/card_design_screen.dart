@@ -12,6 +12,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class CardDesignScreen extends ConsumerStatefulWidget {
   final int modeIndex;
@@ -66,8 +67,40 @@ class _CardDesignScreenState extends ConsumerState<CardDesignScreen> {
         }
       }, SetOptions(merge: true));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("디자인 저장 완료!")));
-        Navigator.pop(context);
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+                // 2. 예쁜 플로팅 스낵바 띄우기
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        // 성공 아이콘 (파란색)
+                        const Icon(Icons.check_circle, color: Color(0xFF4B6EFF), size: 20),
+                        const SizedBox(width: 12),
+                        // 텍스트
+                        Text(
+                          "디자인 저장 완료!",
+                          style: GoogleFonts.notoSans(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: const Color(0xFF333333), // 진한 회색 배경
+                    behavior: SnackBarBehavior.floating,      // [핵심] 화면 위에 둥둥 뜨게 만듦
+                    margin: const EdgeInsets.fromLTRB(20, 0, 20, 40), // [핵심] 하단에서 40px 띄움
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8), // 모서리 둥글게
+                    ),
+                    duration: const Duration(seconds: 2), // 2초 뒤 사라짐
+                    elevation: 4, // 그림자 효과
+                  ),
+                );
+
+                // 3. 화면 닫기
+                Navigator.pop(context);
       }
     } catch (e) {
       print(e);
@@ -100,7 +133,7 @@ class _CardDesignScreenState extends ConsumerState<CardDesignScreen> {
         children: [
           // 1. 상단 미리보기
           Expanded(
-            flex: 6,
+            flex: 10,
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),

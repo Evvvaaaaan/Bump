@@ -11,7 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
 import 'package:bump/features/common/scale_button.dart';
-
+import 'package:bump/features/settings/settings_provider.dart';
 // [핵심 수정] 개별 디자인 위젯 대신 통합 렌더러 임포트
 import 'package:bump/features/common/card_renderer.dart'; 
 
@@ -45,7 +45,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _handleHomeShake() async {
     if (ModalRoute.of(context)?.isCurrent != true) return;
     if (_isNavigating) return;
-    await HapticFeedback.heavyImpact();
+    final isHapticOn = ref.read(settingsProvider).isHapticEnabled;
+
+    if (isHapticOn == true) {
+      print("📳 [DEBUG] 진동을 실행합니다 (Bzzzt!)");
+      // await HapticFeedback.heavyImpact();
+    } else {
+      print("🔕 [DEBUG] 설정이 꺼져있어 진동을 스킵합니다.");
+    }
     setState(() => _isNavigating = true);
     _shakeDetector?.stopListening();
 
@@ -70,10 +77,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         title: const Text("BUMP", style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, fontSize: 24, letterSpacing: 2)), 
         centerTitle: false,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.white),
-            onPressed: () {},
-          ),
+          // IconButton(
+          //   icon: const Icon(Icons.notifications_none, color: Colors.white),
+          //   onPressed: () {},
+          // ),
           const SizedBox(width: 10),
         ],
         bottom: PreferredSize(

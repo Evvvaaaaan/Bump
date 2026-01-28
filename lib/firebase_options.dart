@@ -76,7 +76,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '93080016976',
     projectId: 'bump-57bb6',
     storageBucket: 'bump-57bb6.firebasestorage.app',
-    iosBundleId: 'com.example.bump',
+    iosBundleId: 'com.evan.bump',
   );
 
 }
